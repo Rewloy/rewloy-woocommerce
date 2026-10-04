@@ -96,6 +96,25 @@ final class Webhooks {
 		return true;
 	}
 
+	/**
+	 * Delivers one order through the webhook again: what Rewloy asks for (`order.result: resend`) when the order's
+	 * notification came before the card did. WooCommerce's own entry point is used (`process`), the one a real order
+	 * update goes through, so the delivery is queued the same way, signed the same way and cut down by trim_payload()
+	 * the same way. It is not delivered from here: WooCommerce sends it from its own queue.
+	 *
+	 * @return bool True when the webhook is ours and active and the order was handed to it; false otherwise. WooCommerce
+	 *              does not say whether it queued the delivery (it may refuse an order it finds invalid), so true is
+	 *              "handed over", not "will arrive".
+	 */
+	public function redeliver( int $id, int $order_id ): bool {
+		$hook = $this->owned( $id );
+		if ( null === $hook || 'active' !== (string) $hook->get_status() || $order_id <= 0 ) {
+			return false;
+		}
+		$hook->process( $order_id );
+		return true;
+	}
+
 	public function delete( int $id ): void {
 		$hook = $this->owned( $id );
 		if ( null !== $hook ) {

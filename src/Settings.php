@@ -18,7 +18,7 @@ final class Settings {
 	public const KEY_OPTION = 'rewloy_wc_api_key';
 	/** The connection and choices; holds no secret. */
 	public const OPTION = 'rewloy_wc_settings';
-	/** One row per order being invited: the lock that makes "once" atomic. */
+	/** One row per order, and per e-mail address, being invited: a lock that expires, so two processes do not both mail the link. */
 	public const CLAIM_PREFIX = 'rewloy_wc_claim_';
 
 	/** How the shop was connected: with a connect code (the plugin holds a key bound to its link) or with an API key. */

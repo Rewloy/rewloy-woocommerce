@@ -1,8 +1,9 @@
 <?php
 /**
  * The client's retry rules, apart so that tests can pin them. They follow
- * rewloy-php's: only a request that is safe to repeat is retried, and only
- * for what another attempt can get past.
+ * rewloy-php's: only a request that is safe to repeat (a GET, PUT, PATCH or
+ * DELETE, or a POST that carries an Idempotency-Key) is retried, and only for
+ * what another attempt can get past.
  *
  * @package Rewloy_For_WooCommerce
  */
@@ -20,6 +21,11 @@ final class Retry {
 	 * an admin screen waits for these calls, and two reads on a page already make four attempts.
 	 */
 	public const MAX_RETRIES = 1;
+	/**
+	 * Retries of a POST that carries an Idempotency-Key (issuePass), which runs in a background action and not
+	 * under an admin page: two, as rewloy-php does.
+	 */
+	public const MAX_RETRIES_KEYED = 2;
 	/** The first wait's ceiling, in seconds; it doubles with each attempt. */
 	public const BASE = 0.5;
 	/** The longest backoff, in seconds. */
@@ -31,9 +37,21 @@ final class Retry {
 	/** Methods whose repetition changes nothing more than the first call did. PATCH is safe here: it only sets a value. */
 	private const SAFE_METHODS = array( 'GET', 'HEAD', 'PUT', 'PATCH', 'DELETE' );
 
-	/** May a request of this method be sent again after a failure? A POST never is: it may have been carried out. */
+	/** Is a request of this method safe to send again whatever it is? A POST is not: it may have been carried out. */
 	public static function safe_method( string $method ): bool {
 		return in_array( strtoupper( $method ), self::SAFE_METHODS, true );
+	}
+
+	/**
+	 * How many more attempts a request may have after the first: a safe method gets MAX_RETRIES; a POST that carries
+	 * an Idempotency-Key gets MAX_RETRIES_KEYED, because Rewloy replays the first answer for the same key and body
+	 * instead of doing the work twice (issuePass, since 4 Oct 2026); any other POST none.
+	 */
+	public static function retries_for( string $method, string $idempotency_key ): int {
+		if ( '' !== $idempotency_key && 'POST' === strtoupper( $method ) ) {
+			return self::MAX_RETRIES_KEYED;
+		}
+		return self::safe_method( $method ) ? self::MAX_RETRIES : 0;
 	}
 
 	/** The wait before the retry after attempt `$attempt` (0-based), in seconds, with jitter. */

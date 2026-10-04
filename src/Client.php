@@ -236,7 +236,7 @@ final class Client {
 		if ( null !== $json ) {
 			$args['body'] = $json;
 		}
-		$retries = Retry::safe_method( $method ) ? Retry::MAX_RETRIES : 0; // TEMP-PART1
+		$retries = Retry::retries_for( $method, $idempotency_key );
 
 		for ( $attempt = 0; ; $attempt++ ) {
 			$res = ( $this->transport )( $url, $args );

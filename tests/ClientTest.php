@@ -97,17 +97,89 @@ final class ClientTest extends TestCase {
 		$this->assertCount( 2, $this->requests );
 	}
 
-	public function test_a_post_is_never_retried_not_even_with_a_key(): void {
-		foreach ( array( $this->failure( 503, 'INTERNAL' ), $this->failure( 429, 'RATE_LIMITED', array( 'retry-after' => '1' ) ), new \WP_Error( 'http_request_failed', 'timeout' ) ) as $failure ) {
+	private function card( string $serial = 'ABCD-EFGH-JKLM' ): array {
+		return $this->answer( 201, array( 'data' => array( 'serial' => $serial, 'cardUrl' => 'https://rewloy.com/p/' . $serial . '?k=k' ) ) );
+	}
+
+	/** issuePass carries an Idempotency-Key and Rewloy replays the first answer, so repeating it is safe: it is retried. */
+	public function test_issue_pass_is_retried_after_a_failure_that_another_attempt_can_get_past(): void {
+		foreach ( array(
+			'a gateway error'   => $this->failure( 503, 'INTERNAL' ),
+			'a 502'             => $this->failure( 502, 'INTERNAL' ),
+			'rate limited'      => $this->failure( 429, 'RATE_LIMITED', array( 'retry-after' => '1' ) ),
+			'still running'     => $this->failure( 409, 'IDEMPOTENCY_IN_PROGRESS' ),
+			'a network error'   => new \WP_Error( 'http_request_failed', 'cURL error 28: timed out' ),
+		) as $name => $failure ) {
 			$this->requests = array();
-			$this->script( $failure, $this->answer( 201, array( 'data' => array( 'serial' => 'A', 'cardUrl' => 'u' ) ) ) );
+			$this->script( $failure, $this->card() );
+			$card = $this->client()->issue_pass( array( 'programId' => self::PROGRAM, 'email' => 'a@b.co' ), 'woo-0123456789-5' );
+			$this->assertSame( 'ABCD-EFGH-JKLM', $card['serial'], $name );
+			$this->assertCount( 2, $this->requests, $name );
+			$this->assertSame( $this->requests[0]['args']['body'], $this->requests[1]['args']['body'], $name . ': the same body' );
+			$this->assertSame( 'woo-0123456789-5', $this->requests[1]['args']['headers']['Idempotency-Key'], $name . ': the same key' );
+		}
+	}
+
+	public function test_issue_pass_gives_up_after_two_retries(): void {
+		$this->script( $this->failure( 503, 'X' ), $this->failure( 502, 'X' ), $this->failure( 504, 'X' ), $this->card() );
+		try {
+			$this->client()->issue_pass( array( 'programId' => self::PROGRAM ), 'woo-0123456789-5' );
+			$this->fail( 'expected an error' );
+		} catch ( ApiError $e ) {
+			$this->assertSame( 504, $e->status );
+			$this->assertCount( 3, $this->requests, 'one attempt and two retries: it runs in a background action, not under an admin page' );
+			$this->assertTrue( $e->outcome_unknown() );
+		}
+	}
+
+	public function test_issue_pass_does_not_retry_what_another_attempt_cannot_change(): void {
+		foreach ( array(
+			'a refusal'        => $this->failure( 422, 'EMAIL_BLOCKED' ),
+			'the key reused'   => $this->failure( 422, 'IDEMPOTENCY_KEY_REUSED' ),
+			'not authorised'   => $this->failure( 403, 'FORBIDDEN' ),
+			'a server error'   => $this->failure( 500, 'INTERNAL' ),
+			'a long wait'      => $this->failure( 429, 'RATE_LIMITED', array( 'retry-after' => '120' ) ),
+		) as $name => $failure ) {
+			$this->requests = array();
+			$this->script( $failure, $this->card() );
 			try {
 				$this->client()->issue_pass( array( 'programId' => self::PROGRAM ), 'woo-0123456789-5' );
-				$this->fail( 'expected an error' );
+				$this->fail( 'expected an error: ' . $name );
 			} catch ( \Rewloy\WooCommerce\RewloyException $e ) {
-				$this->assertCount( 1, $this->requests, 'issuePass was sent once' );
+				$this->assertCount( 1, $this->requests, $name );
 			}
 		}
+	}
+
+	public function test_a_still_running_first_request_is_an_unclear_outcome_not_a_refusal(): void {
+		$this->script( $this->failure( 409, 'IDEMPOTENCY_IN_PROGRESS' ), $this->failure( 409, 'IDEMPOTENCY_IN_PROGRESS' ), $this->failure( 409, 'IDEMPOTENCY_IN_PROGRESS' ) );
+		try {
+			$this->client()->issue_pass( array( 'programId' => self::PROGRAM ), 'woo-0123456789-5' );
+			$this->fail( 'expected an error' );
+		} catch ( ApiError $e ) {
+			$this->assertSame( 409, $e->status );
+			$this->assertTrue( $e->outcome_unknown(), 'the first request may yet open a card' );
+		}
+	}
+
+	public function test_a_post_without_a_key_is_never_retried(): void {
+		foreach ( array( $this->failure( 503, 'INTERNAL' ), new \WP_Error( 'http_request_failed', 'timeout' ) ) as $failure ) {
+			$this->requests = array();
+			$this->script( $failure, $this->answer( 201, array( 'data' => array( 'id' => self::LINK ) ) ) );
+			try {
+				$this->client()->create_shop( array( 'platform' => 'woocommerce' ) );
+				$this->fail( 'expected an error' );
+			} catch ( \Rewloy\WooCommerce\RewloyException $e ) {
+				$this->assertCount( 1, $this->requests, 'creating a link is sent once' );
+			}
+		}
+	}
+
+	public function test_a_replay_in_the_middle_of_retries_is_reported(): void {
+		$this->script( new \WP_Error( 'x', 'y' ), $this->answer( 201, array( 'data' => array( 'serial' => 'ABCD-EFGH-JKLM', 'cardUrl' => 'https://rewloy.com/p/x?k=k' ) ), array( 'idempotent-replayed' => 'true' ) ) );
+		$card = $this->client()->issue_pass( array( 'programId' => self::PROGRAM ), 'woo-0123456789-5' );
+		$this->assertTrue( $card['replayed'] );
+		$this->assertCount( 2, $this->requests );
 	}
 
 	public function test_create_shop_is_never_retried(): void {
@@ -188,7 +260,7 @@ final class ClientTest extends TestCase {
 		$client = $this->client();
 		$this->assertStringNotContainsString( 'SECRET', print_r( $client, true ) );
 		$this->assertStringNotContainsString( 'SECRET', var_export( $client->__debugInfo(), true ) );
-		$this->script( new \WP_Error( 'http_request_failed', 'boom' ) );
+		$this->script( new \WP_Error( 'http_request_failed', 'boom' ), new \WP_Error( 'http_request_failed', 'boom' ), new \WP_Error( 'http_request_failed', 'boom' ) );
 		try {
 			$client->issue_pass( array(), 'woo-0123456789-5' );
 		} catch ( \Rewloy\WooCommerce\RewloyException $e ) {

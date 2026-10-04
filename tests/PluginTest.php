@@ -139,7 +139,16 @@ final class PluginTest extends TestCase {
 		$this->assertNotFalse( has_filter( 'woocommerce_account_menu_items' ) );
 		$this->assertNotFalse( has_action( 'admin_menu' ) );
 		$this->assertNotFalse( has_action( 'admin_post_rewloy_wc_connect' ) );
+		$this->assertNotFalse( has_action( 'admin_post_rewloy_wc_connect_code' ), 'the way in' );
+		$this->assertNotFalse( has_action( \Rewloy\WooCommerce\Issuer::HOOK ), 'the scheduled run of an order\'s card, which an unclear answer is repeated by' );
+		$this->assertNotFalse( has_action( 'woocommerce_order_action_rewloy_retry_card' ) );
 		$this->assertFalse( has_action( 'admin_notices' ), 'WooCommerce is present, so no warning' );
+	}
+
+	/** The issuer delivers an order again through the shop's webhook when Rewloy asks: it must be given that webhook. */
+	public function test_the_issuer_is_given_the_webhook_it_redelivers_through(): void {
+		$src = (string) file_get_contents( self::ROOT . '/src/Plugin.php' );
+		$this->assertMatchesRegularExpression( '/new Issuer\( \$settings, \$factory, null, \$webhooks \)/', $src );
 	}
 
 	public function test_the_front_end_has_no_admin_screen(): void {

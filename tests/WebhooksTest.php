@@ -154,4 +154,36 @@ final class WebhooksTest extends TestCase {
 		$this->assertSame( 'active', $hook->props['status'] );
 		$this->assertSame( 0, $hook->props['failure_count'] );
 	}
+
+	public function test_an_order_is_delivered_again_through_woocommerces_own_entry_point(): void {
+		$hook = $this->makeWebhook();
+		$this->assertTrue( ( new Webhooks( $this->connected() ) )->redeliver( 41, 55 ) );
+		$this->assertSame( array( 55 ), $hook->processed, 'process(), which queues the delivery the way a real order update does' );
+	}
+
+	public function test_an_order_is_not_delivered_again_through_a_webhook_that_is_off_missing_or_not_ours(): void {
+		$hooks = new Webhooks( $this->connected() );
+		$off   = $this->makeWebhook( 41, null, 'disabled', 5 );
+		$this->assertFalse( $hooks->redeliver( 41, 55 ) );
+		$this->assertSame( array(), $off->processed );
+
+		$paused = $this->makeWebhook( 42, null, 'paused' );
+		$this->assertFalse( ( new Webhooks( $this->connected( array( 'webhook_id' => 42 ) ) ) )->redeliver( 42, 55 ) );
+		$this->assertSame( array(), $paused->processed );
+
+		$other = $this->makeWebhook( 43, 'https://other.example/hook' );
+		$this->assertFalse( ( new Webhooks( $this->connected( array( 'webhook_id' => 43 ) ) ) )->redeliver( 43, 55 ), 'the address does not name our link' );
+		$this->assertSame( array(), $other->processed );
+
+		$this->assertFalse( $hooks->redeliver( 99, 55 ), 'no such webhook' );
+		$ours = $this->makeWebhook( 44 );
+		$this->assertFalse( ( new Webhooks( $this->connected( array( 'webhook_id' => 44 ) ) ) )->redeliver( 44, 0 ), 'no order' );
+		$this->assertSame( array(), $ours->processed );
+	}
+
+	public function test_a_redelivered_order_carries_the_same_cut_down_body(): void {
+		new \WC_Order( 55, 'processing', 'ayse@example.com' );
+		$out = ( new Webhooks( $this->connected() ) )->trim_payload( $this->fullOrder(), 'order', 55, 41 );
+		$this->assertSame( array( 'id', 'number', 'status', 'currency', 'total', 'billing' ), array_keys( $out ), 'the filter that trims a real update trims a delivery from process() too' );
+	}
 }

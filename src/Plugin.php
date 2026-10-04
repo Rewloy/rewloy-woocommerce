@@ -47,7 +47,7 @@ final class Plugin {
 		$factory  = self::client_factory( $settings );
 		$webhooks = new Webhooks( $settings );
 		$webhooks->register();
-		$issuer = new Issuer( $settings, $factory );
+		$issuer = new Issuer( $settings, $factory, null, $webhooks );
 		( new Checkout( $settings, $issuer ) )->register();
 		( new Account( $settings ) )->register();
 		if ( is_admin() ) {

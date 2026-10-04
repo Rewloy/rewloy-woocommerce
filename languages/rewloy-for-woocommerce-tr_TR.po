@@ -566,58 +566,86 @@ msgstr "Webhook artık yok. Bağlantıyı kaldırıp yeniden bağlayın."
 msgid "The webhook is active again."
 msgstr "Webhook yeniden etkin."
 
-#: src/Issuer.php:164
+#: src/Issuer.php:197
 msgid "Rewloy: no card was opened: the order has no valid billing e-mail."
 msgstr "Rewloy: kart açılmadı: siparişin geçerli bir fatura e-postası yok."
 
+#: src/Issuer.php:206
+msgid "Rewloy: no new card was opened: another order of this e-mail address is inviting it or has invited it, and one e-mail gets one card from this shop."
+msgstr "Rewloy: yeni kart açılmadı: bu e-posta adresinin başka bir siparişi onu davet ediyor ya da etmişti; bu mağazadan bir e-postaya bir kart açılır."
+
 #. translators: %s: an order number.
-#: src/Issuer.php:173
+#: src/Issuer.php:224
 #, php-format
 msgid "Rewloy: no new card was opened: order #%s already invited this e-mail address, and one e-mail gets one card from this shop."
 msgstr "Rewloy: yeni kart açılmadı: #%s numaralı sipariş bu e-posta adresini zaten davet etmişti; bu mağazadan bir e-postaya bir kart açılır."
 
-#: src/Issuer.php:182
-msgid "Rewloy: no new card was opened: another order of this e-mail address is inviting it or has invited it, and one e-mail gets one card from this shop."
-msgstr "Rewloy: yeni kart açılmadı: bu e-posta adresinin başka bir siparişi onu davet ediyor ya da etmişti; bu mağazadan bir e-postaya bir kart açılır."
-
-#: src/Issuer.php:189
+#: src/Issuer.php:233
 msgid "Rewloy: no card was opened: there is no API key."
 msgstr "Rewloy: kart açılmadı: API anahtarı yok."
 
 #. translators: %s: why Rewloy refused.
-#: src/Issuer.php:217
+#: src/Issuer.php:284
 #, php-format
 msgid "Rewloy: no card was opened. %s"
 msgstr "Rewloy: kart açılmadı. %s"
 
+#: src/Issuer.php:352
+msgid "Rewloy: the first request for this order is older than six days, and Rewloy no longer replays it, so asking again could open a second card. Look for this customer by e-mail in the Rewloy panel."
+msgstr "Rewloy: bu siparişin ilk isteği altı günden eski ve Rewloy artık onu yinelemiyor; bu yüzden yeniden sormak ikinci bir kart açabilir. Bu müşteriyi Rewloy panelinde e-postasıyla arayın."
+
+#: src/Issuer.php:354
+msgid "Rewloy: the order's e-mail address or the connection changed since the first request, so the same request cannot be repeated: Rewloy would refuse it, or open a second card. Look for this customer by e-mail in the Rewloy panel."
+msgstr "Rewloy: siparişin e-posta adresi ya da bağlantı ilk istekten beri değişti; bu yüzden aynı istek yinelenemez: Rewloy onu reddeder ya da ikinci bir kart açar. Bu müşteriyi Rewloy panelinde e-postasıyla arayın."
+
+#: src/Issuer.php:356
+msgid "Rewloy: this order has no record of its first request, so asking again could open a second card. Look for this customer by e-mail in the Rewloy panel."
+msgstr "Rewloy: bu siparişte ilk isteğinin kaydı yok; bu yüzden yeniden sormak ikinci bir kart açabilir. Bu müşteriyi Rewloy panelinde e-postasıyla arayın."
+
+#: src/Issuer.php:374
+msgid "Rewloy: no clear answer came, so the card may or may not have been opened. The same request is repeated automatically, a few times over the next hours: Rewloy answers a repeat with the card it already opened, so a second one cannot be opened."
+msgstr "Rewloy: net bir yanıt gelmedi; kart açılmış da olabilir, açılmamış da. Aynı istek önümüzdeki saatlerde birkaç kez kendiliğinden yinelenir: Rewloy yinelemeyi zaten açtığı kartla yanıtlar, bu yüzden ikinci bir kart açılamaz."
+
+#: src/Issuer.php:375
+msgid "Rewloy: no clear answer came, so the card may or may not have been opened. Use \"Rewloy: try opening the card again\" on this order: it repeats the same request, and Rewloy answers a repeat with the card it already opened. Or look for this customer by e-mail in the Rewloy panel."
+msgstr "Rewloy: net bir yanıt gelmedi; kart açılmış da olabilir, açılmamış da. Bu siparişte \"Rewloy: kartı yeniden açmayı dene\"yi kullanın: aynı isteği yineler ve Rewloy yinelemeyi zaten açtığı kartla yanıtlar. Ya da bu müşteriyi Rewloy panelinde e-postasıyla arayın."
+
 #. translators: %s: the card's serial number.
-#: src/Issuer.php:239
+#: src/Issuer.php:393
 #, php-format
 msgid "Rewloy: card opened (%s). Its link was e-mailed to the customer."
 msgstr "Rewloy: kart açıldı (%s). Bağlantısı müşteriye e-postayla gönderildi."
 
 #. translators: %s: the card's serial number.
-#: src/Issuer.php:241
+#: src/Issuer.php:395
 #, php-format
 msgid "Rewloy: card opened (%s), but the e-mail with its link could not be sent. The link is private and is not kept here; find the card in the Rewloy panel."
 msgstr "Rewloy: kart açıldı (%s), ama bağlantısını taşıyan e-posta gönderilemedi. Bağlantı özeldir ve burada saklanmaz; kartı Rewloy panelinde bulun."
 
-#: src/Issuer.php:259
+#: src/Issuer.php:397
+msgid "Rewloy answered with the card an earlier request of this order had opened."
+msgstr "Rewloy, bu siparişin daha önceki bir isteğinin açtığı kartla yanıt verdi."
+
+#: src/Issuer.php:400
+msgid "The order had reached Rewloy before the card existed, so it was queued to be sent again; it counts toward the card once that delivery arrives."
+msgstr "Sipariş Rewloy'a kart açılmadan önce ulaşmıştı; bu yüzden yeniden gönderilmek üzere sıraya alındı. Bu teslimat ulaşınca karta sayılır."
+
+#: src/Issuer.php:402
+msgid "The order had reached Rewloy before the card existed, and it could not be sent again because the webhook is missing or not active. Turn the webhook on and save the order again within seven days, or the order will not count toward the card."
+msgstr "Sipariş Rewloy'a kart açılmadan önce ulaşmıştı ve webhook yok ya da etkin olmadığı için yeniden gönderilemedi. Webhook'u açın ve siparişi yedi gün içinde yeniden kaydedin; yoksa sipariş karta sayılmaz."
+
+#: src/Issuer.php:447
 msgid "Rewloy: try opening the card again"
 msgstr "Rewloy: kartı yeniden açmayı dene"
 
-#: src/Issuer.php:376
-msgid "Rewloy: no clear answer came, so the card may or may not have been opened. It is not sent again, so that two are not opened. Look for this customer by e-mail in the Rewloy panel."
-msgstr "Rewloy: net bir yanıt gelmedi; kart açılmış da olabilir, açılmamış da. İki kart açılmasın diye yeniden gönderilmez. Bu müşteriyi Rewloy panelinde e-postasıyla arayın."
-
 #. translators: %s: the shop's name.
-#: src/Issuer.php:388
+#: src/Issuer.php:596
 #, php-format
 msgid "Your %s loyalty card"
 msgstr "%s sadakat kartınız"
 
 #. translators: 1: order number, 2: shop name, 3: card link, 4: data controller's name, 5: privacy notice link.
-#: src/Issuer.php:391
+#: src/Issuer.php:599
 #, php-format
 msgid ""
 "Hello,\n"

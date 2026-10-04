@@ -16,6 +16,16 @@ final class RetryTest extends TestCase {
 		$this->assertFalse( Retry::safe_method( 'POST' ) );
 	}
 
+	public function test_how_many_retries_a_request_gets(): void {
+		$this->assertSame( Retry::MAX_RETRIES, Retry::retries_for( 'GET', '' ) );
+		$this->assertSame( Retry::MAX_RETRIES, Retry::retries_for( 'DELETE', '' ) );
+		$this->assertSame( 0, Retry::retries_for( 'POST', '' ), 'a POST that may have been carried out is sent once' );
+		$this->assertSame( Retry::MAX_RETRIES_KEYED, Retry::retries_for( 'POST', 'woo-0123456789-5' ), 'with an Idempotency-Key Rewloy replays the first answer' );
+		$this->assertSame( Retry::MAX_RETRIES_KEYED, Retry::retries_for( 'post', 'woo-0123456789-5' ) );
+		$this->assertSame( 2, Retry::MAX_RETRIES_KEYED );
+		$this->assertSame( 1, Retry::MAX_RETRIES );
+	}
+
 	public function test_backoff_grows_and_stays_in_bounds(): void {
 		$this->assertSame( 0.25, Retry::backoff( 0, 0.0 ) );
 		$this->assertSame( 0.5, Retry::backoff( 0, 1.0 ) );

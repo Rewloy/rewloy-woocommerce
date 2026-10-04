@@ -24,7 +24,7 @@ final class Lock {
 	 *
 	 * @param string $name The lock's name (an option name).
 	 * @param int    $ttl  Seconds after which a lock left behind by a dead process may be taken over;
-	 *                     0 for never (a claim that guards a card is kept for good).
+	 *                     0 for never. The plugin always gives one: it holds nothing for good.
 	 */
 	public function acquire( string $name, int $ttl = 0 ): bool {
 		global $wpdb;

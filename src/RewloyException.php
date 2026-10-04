@@ -32,10 +32,12 @@ class RewloyException extends \RuntimeException {
 
 	/**
 	 * May the request have been carried out although we have no clean answer?
-	 * No answer at all, and a server error, both leave that open: anything that
-	 * must happen once is then not repeated.
+	 * No answer at all, a server error, and "the first request with this
+	 * Idempotency-Key is still running" all leave that open. A call that carries
+	 * an Idempotency-Key may be repeated with the same key and body (Rewloy
+	 * replays the first answer); one that does not must not be.
 	 */
 	public function outcome_unknown(): bool {
-		return 0 === $this->status || $this->status >= 500;
+		return 0 === $this->status || $this->status >= 500 || 'IDEMPOTENCY_IN_PROGRESS' === $this->api_code;
 	}
 }

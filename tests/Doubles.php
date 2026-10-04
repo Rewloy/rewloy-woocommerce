@@ -54,6 +54,10 @@ class WC_Order {
 		return $this->billing_email;
 	}
 
+	public function set_billing_email( string $email ): void {
+		$this->billing_email = $email;
+	}
+
 	public function get_order_number(): string {
 		return (string) $this->id;
 	}
@@ -101,6 +105,8 @@ class WC_Webhook {
 	public array $props = array();
 	public bool $deleted = false;
 	public int $id = 0;
+	/** @var list<mixed> What was handed to process(): WooCommerce's entry point for delivering a resource. */
+	public array $processed = array();
 
 	public function __call( string $name, array $args ): mixed {
 		if ( str_starts_with( $name, 'set_' ) ) {
@@ -122,6 +128,11 @@ class WC_Webhook {
 		}
 		self::$db[ $this->id ] = $this;
 		return $this->id;
+	}
+
+	public function process( mixed $arg ): mixed {
+		$this->processed[] = $arg;
+		return $arg;
 	}
 
 	public function delete( bool $force = false ): bool {
