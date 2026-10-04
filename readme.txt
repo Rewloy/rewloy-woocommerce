@@ -4,13 +4,13 @@ Tags: loyalty, rewards, woocommerce, stamp card, wallet
 Requires at least: 6.4
 Tested up to: 7.1
 Requires PHP: 8.1
-Stable tag: 0.2.0
+Stable tag: 0.2.1
 License: MIT
 License URI: https://opensource.org/licenses/MIT
 WC requires at least: 8.0
 WC tested up to: 11.1
 
-Paid WooCommerce orders fill Rewloy loyalty cards. Connect with a one-time code. Optional invitation at checkout. / Ödenmiş siparişler Rewloy sadakat kartlarını doldurur.
+Paid WooCommerce orders fill Rewloy loyalty cards: stamps, points and cashback. Connect with a one-time code.
 
 == Description ==
 
@@ -106,6 +106,9 @@ Türkçe özet: Eklenti yalnız Rewloy'a veri gönderir (bağlanırken bağlant�
 
 == Changelog ==
 
+= 0.2.1 =
+* WordPress Plugin Check: request input is unslashed and sanitised in one step, an exception's text is marked as escaped where it is shown, and the short description fits 150 characters. No behaviour changes.
+
 = 0.2.0 =
 * Connect with a one-time code made in the Rewloy panel: no API key of your own, and the key the plugin keeps can work with this shop's link only. The API key stays as an advanced option, checked with the new self-check and with the E-ticaret role in mind.
 * Once per order on Rewloy's own idempotency: every request carries the order's key, the order and the link; an unclear answer is asked again with the same key (automatically, then from the order's action list) and the card link is e-mailed when it comes. The permanent locks are gone; the one-e-mail-one-card rule stays.
@@ -118,6 +121,9 @@ Türkçe özet: Eklenti yalnız Rewloy'a veri gönderir (bağlanırken bağlant�
 * First preview: connect with an API key, health and last orders, pause, resume, disconnect; optional checkout invitation; optional My Account tab; Turkish translation.
 
 == Upgrade Notice ==
+
+= 0.2.1 =
+Code-review fixes for WordPress.org; no behaviour changes.
 
 = 0.2.0 =
 Connect with a one-time code; once-per-order now rests on Rewloy's idempotency, and an unclear answer is asked again instead of being lost.

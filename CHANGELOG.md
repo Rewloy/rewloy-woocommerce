@@ -6,7 +6,11 @@ https://rewloy.com/gelistiriciler/degisiklikler
 This plugin's releases. The API's own changes are listed at the link above.
 Every decision and its reason: [docs/DECISIONS.md](docs/DECISIONS.md).
 
-## 0.2.0 (yayımlanmadı / unreleased, 4 Oct 2026)
+## 0.2.1 (4 Oct 2026)
+
+- WordPress Plugin Check: request input is unslashed and sanitised in one step, an exception's text is marked as escaped where it is shown (Admin and the order notes escape it on output), the short description fits 150 characters, and the bundled Turkish translation keeps its `load_plugin_textdomain` with the reason. No behaviour changes.
+
+## 0.2.0 (4 Oct 2026)
 
 Rewloy'un o gün yayına aldığı platform özelliklerini kullanır (Rewloy ADR 174).
 

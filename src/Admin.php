@@ -142,7 +142,7 @@ final class Admin {
 			wp_die( esc_html__( 'You are not allowed to do this.', 'rewloy-for-woocommerce' ), '', array( 'response' => 403 ) );
 		}
 		// These forms are POSTs: a nonce in a link (a GET) must not turn the connection on, off or away.
-		$method = isset( $_SERVER['REQUEST_METHOD'] ) && is_string( $_SERVER['REQUEST_METHOD'] ) ? strtoupper( $_SERVER['REQUEST_METHOD'] ) : '';
+		$method = isset( $_SERVER['REQUEST_METHOD'] ) && is_string( $_SERVER['REQUEST_METHOD'] ) ? strtoupper( sanitize_text_field( wp_unslash( $_SERVER['REQUEST_METHOD'] ) ) ) : '';
 		if ( 'POST' !== $method ) {
 			wp_die( esc_html__( 'You are not allowed to do this.', 'rewloy-for-woocommerce' ), '', array( 'response' => 405 ) );
 		}
@@ -162,8 +162,7 @@ final class Admin {
 	/** One posted value, unslashed and cleaned of tags and line breaks. */
 	private function post( string $name ): string {
 		// phpcs:ignore WordPress.Security.NonceVerification.Missing -- act() checks the nonce first.
-		$value = $_POST[ $name ] ?? '';
-		return is_string( $value ) ? trim( sanitize_text_field( wp_unslash( $value ) ) ) : '';
+		return isset( $_POST[ $name ] ) && is_string( $_POST[ $name ] ) ? trim( sanitize_text_field( wp_unslash( $_POST[ $name ] ) ) ) : '';
 	}
 
 	/**

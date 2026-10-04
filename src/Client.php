@@ -245,6 +245,7 @@ final class Client {
 					( $this->sleep )( Retry::backoff( $attempt ) );
 					continue;
 				}
+				// phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- an exception's text is never printed raw: Admin and the order notes escape it where they show it.
 				throw new ConnectionError( 'Rewloy did not answer: ' . $res->get_error_message() );
 			}
 			$status     = (int) wp_remote_retrieve_response_code( $res );
@@ -257,6 +258,7 @@ final class Client {
 				}
 				$decoded = json_decode( $raw, true );
 				if ( ! is_array( $decoded ) ) {
+					// phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- an exception's text is never printed raw: Admin and the order notes escape it where they show it.
 					throw new ConnectionError( 'The answer was not the JSON the API documents.', $status, '', $request_id );
 				}
 				$meta['replayed'] = 'true' === strtolower( $this->header( $res, 'idempotent-replayed' ) );
@@ -277,6 +279,7 @@ final class Client {
 					continue;
 				}
 			}
+			// phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- an exception's text is never printed raw: Admin and the order notes escape it where they show it.
 			throw new ApiError( $message, $status, $code, $request, $wait ?? 0.0 );
 		}
 	}

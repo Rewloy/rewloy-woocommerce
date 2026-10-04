@@ -13,7 +13,7 @@ defined( 'ABSPATH' ) || exit;
 
 final class Plugin {
 
-	public const VERSION = '0.2.0';
+	public const VERSION = '0.2.1';
 	/** Set when the My Account tab is turned on or off, so the rewrite rules are flushed once. */
 	public const FLUSH_OPTION = 'rewloy_wc_flush_rewrite';
 	public const TEXT_DOMAIN  = 'rewloy-for-woocommerce';
@@ -34,6 +34,9 @@ final class Plugin {
 	}
 
 	public static function load_textdomain(): void {
+		// Kept on purpose: the Turkish translation ships in languages/ for Turkish shops from day one, before
+		// translate.wordpress.org has it; WordPress loads only its own language packs by itself.
+		// phpcs:ignore PluginCheck.CodeAnalysis.DiscouragedFunctions.load_plugin_textdomainFound
 		load_plugin_textdomain( self::TEXT_DOMAIN, false, dirname( plugin_basename( REWLOY_WC_FILE ) ) . '/languages' );
 	}
 
