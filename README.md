@@ -3,8 +3,9 @@
 **WooCommerce mağazanızın siparişleri Rewloy sadakat kartlarını doldursun.**
 
 > **Durum: önizleme (0.x): yayımlanmadı.** Eklentinin henüz yayımlanmış bir sürümü
-> yok; WordPress.org dizininde de değil. Kod burada, test edilmiş ama gerçek bir
-> WordPress'te henüz denenmemiş hâliyle duruyor. WooCommerce mağazanızı Rewloy'a
+> yok; WordPress.org dizininde de değil. Kod burada; PHPUnit'le ve gerçek bir
+> WordPress 7.1 + WooCommerce 11.1'de sahte bir Rewloy API'siyle denendi
+> ([docs/VERIFIED.md](docs/VERIFIED.md)); gerçek Rewloy'a karşı henüz denenmedi. WooCommerce mağazanızı Rewloy'a
 > **bugün eklentisiz de bağlayabilirsiniz**; yolu aşağıda.
 
 [Rewloy](https://rewloy.com), işletmelerin dijital sadakat kartlarını
@@ -175,7 +176,9 @@ sipariş, sonucuyla birlikte panelde bağlantının kendi sayfasında görünür
 **Let your WooCommerce shop's orders fill Rewloy loyalty cards.**
 
 **Status: preview (0.x): not published.** There is no release yet, and it is not on
-WordPress.org. The code is here, tested but not yet run on a real WordPress.
+WordPress.org. The code is here, tested with PHPUnit and run on a real WordPress 7.1 and
+WooCommerce 11.1 against a local fake of the Rewloy API ([docs/VERIFIED.md](docs/VERIFIED.md));
+it has not yet been run against the real Rewloy.
 
 You can connect WooCommerce today without a plugin:
 1. In the Rewloy panel, go to E-ticaret › Mağaza bağla and choose WooCommerce.

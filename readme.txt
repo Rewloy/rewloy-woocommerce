@@ -2,13 +2,13 @@
 Contributors: rewloy
 Tags: loyalty, rewards, woocommerce, stamp card, wallet
 Requires at least: 6.4
-Tested up to: 6.8
+Tested up to: 7.1
 Requires PHP: 8.1
 Stable tag: 0.1.0
 License: MIT
 License URI: https://opensource.org/licenses/MIT
 WC requires at least: 8.0
-WC tested up to: 9.4
+WC tested up to: 11.1
 
 Paid WooCommerce orders fill Rewloy loyalty cards. Connect with an API key. Optional invitation at checkout. / Ödenmiş siparişler Rewloy sadakat kartlarını doldurur.
 

@@ -8,7 +8,7 @@
  * Requires PHP:      8.1
  * Requires Plugins:  woocommerce
  * WC requires at least: 8.0
- * WC tested up to:   9.4
+ * WC tested up to:   11.1
  * Author:            Rewloy
  * Author URI:        https://rewloy.com
  * License:           MIT
