@@ -87,9 +87,29 @@ final class Issuer {
 			if ( ! function_exists( 'as_schedule_single_action' ) ) {
 				return false;
 			}
-			// Unique: an action already waiting for this order is not scheduled twice.
-			as_schedule_single_action( $when, self::HOOK, array( $order_id ), self::GROUP, true );
-			return true;
+			// Not Action Scheduler's `unique`: its check counts the action that is running right now (this very hook
+			// and arguments, in progress) as the same action, so a repeat scheduled from inside the run that needs
+			// it is silently dropped (seen on a real WordPress: nothing was scheduled, and the order note said it
+			// was). A repeat already waiting for about that time or later is enough; anything else is scheduled.
+			if ( function_exists( 'as_get_scheduled_actions' ) ) {
+				$waiting = as_get_scheduled_actions(
+					array(
+						'hook'         => self::HOOK,
+						'args'         => array( $order_id ),
+						'group'        => self::GROUP,
+						'status'       => 'pending',
+						'date'         => $when - 60,
+						'date_compare' => '>=',
+						'per_page'     => 1,
+					),
+					'ids'
+				);
+				if ( is_array( $waiting ) && array() !== $waiting ) {
+					return true;
+				}
+			}
+			// 0 is Action Scheduler saying it did not schedule (not ready, a store error): then nothing is on its way.
+			return (int) as_schedule_single_action( $when, self::HOOK, array( $order_id ), self::GROUP ) > 0;
 		};
 	}
 

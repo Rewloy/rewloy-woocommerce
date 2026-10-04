@@ -891,17 +891,55 @@ final class IssuerTest extends TestCase {
 	}
 
 	/**
+	 * Found on a real WordPress: Action Scheduler's `unique` flag counts the action that is running right now (the
+	 * same hook and arguments, in progress) as a duplicate, so a repeat scheduled from inside the run that needs it
+	 * was dropped and the note still said it would come. The repeat is a plain single action now.
+	 *
 	 * @runInSeparateProcess
 	 * @preserveGlobalState disabled
 	 */
-	public function test_with_action_scheduler_the_next_attempt_is_a_unique_single_action_and_is_cancelled_once_settled(): void {
+	public function test_with_action_scheduler_the_next_attempt_is_a_single_action_not_a_unique_one_and_is_cancelled_once_settled(): void {
 		$order = $this->order();
 		$this->script( $this->failure( 500, 'INTERNAL' ), $this->issued() );
-		Functions\expect( 'as_schedule_single_action' )->twice()->with( \Mockery::type( 'int' ), Issuer::HOOK, array( 55 ), Issuer::GROUP, true );
+		Functions\expect( 'as_schedule_single_action' )->twice()->with( \Mockery::type( 'int' ), Issuer::HOOK, array( 55 ), Issuer::GROUP )->andReturn( 7 );
 		Functions\expect( 'as_unschedule_action' )->once()->with( Issuer::HOOK, array( 55 ), Issuer::GROUP );
 		$issuer = new Issuer( $this->settings, $this->factory() );
 		$this->assertSame( Issuer::STATE_UNKNOWN, $issuer->run( 55 ) );
 		$this->itIsTime( $order );
 		$this->assertSame( Issuer::STATE_ISSUED, $issuer->run( 55 ) );
+	}
+
+	/**
+	 * @runInSeparateProcess
+	 * @preserveGlobalState disabled
+	 */
+	public function test_a_repeat_already_waiting_for_that_time_is_not_scheduled_again(): void {
+		$order = $this->order();
+		$this->script( $this->failure( 500, 'INTERNAL' ) );
+		Functions\expect( 'as_get_scheduled_actions' )->once()->with(
+			\Mockery::on(
+				static fn ( $args ) => is_array( $args ) && Issuer::HOOK === $args['hook'] && array( 55 ) === $args['args'] && 'pending' === $args['status'] && '>=' === $args['date_compare'] && is_int( $args['date'] ) && $args['date'] > time() + 200
+			),
+			'ids'
+		)->andReturn( array( 12 ) );
+		Functions\expect( 'as_schedule_single_action' )->never();
+		$issuer = new Issuer( $this->settings, $this->factory() );
+		$this->assertSame( Issuer::STATE_UNKNOWN, $issuer->run( 55 ) );
+		$this->assertStringContainsString( 'repeated automatically', $order->notes[0]['note'] );
+	}
+
+	/**
+	 * @runInSeparateProcess
+	 * @preserveGlobalState disabled
+	 */
+	public function test_when_action_scheduler_schedules_nothing_the_note_does_not_promise_a_repeat(): void {
+		$order = $this->order();
+		$this->script( $this->failure( 500, 'INTERNAL' ) );
+		Functions\expect( 'as_get_scheduled_actions' )->once()->andReturn( array() );
+		Functions\expect( 'as_schedule_single_action' )->once()->andReturn( 0 );
+		$issuer = new Issuer( $this->settings, $this->factory() );
+		$this->assertSame( Issuer::STATE_UNKNOWN, $issuer->run( 55 ) );
+		$this->assertStringNotContainsString( 'repeated automatically', $order->notes[0]['note'] );
+		$this->assertStringContainsString( 'try opening the card again', $order->notes[0]['note'] );
 	}
 }

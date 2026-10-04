@@ -419,6 +419,14 @@ IDEMPOTENCY_KEY_REUSED`. So:
 A reply is also kept honest in the order note: if Rewloy says `Idempotent-Replayed: true` the
 note says the card was the one an earlier request of the order had opened.
 
+*Found by the run against the real Rewloy (VERIFIED.md, 0.2.0), and corrected:* the repeat was
+first scheduled with Action Scheduler's `unique` flag. That flag counts an action that is *running*
+as the same action, and the first attempt always runs inside the async action of the same hook
+and arguments, so the repeat was silently never scheduled while the note said it would be. It is
+now a plain single action, skipped only when a pending one already waits for about that time or
+later (`as_get_scheduled_actions`), and the note promises the repeat only when Action Scheduler
+returned an action id.
+
 **D30. `order.result: "resend"` delivers the order again through WooCommerce's webhook.**
 (Closes the known limit "Kartı yok".) The answer's `order` says what became of the order:
 `waiting` (the webhook has not come; it will find this card), `recorded` (settled; nothing
