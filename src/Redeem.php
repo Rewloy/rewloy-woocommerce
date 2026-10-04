@@ -68,7 +68,7 @@ final class Redeem {
 	/** @var callable(): int */
 	private $now;
 
-	/** @var array<string,array{quote?:array<string,mixed>,error?:string,currency?:string}> This request's answers, by normalised code (or `typo:` + the code). */
+	/** @var array<string,array{quote?:array<string,mixed>,error?:string,currency?:string,reason?:string}> This request's answers, by normalised code (or `typo:` + the code). */
 	private array $memo = array();
 	/** @var array<string,bool> This request's look-ups of the shop's own coupons, by code. */
 	private array $shop_coupons = array();
@@ -137,7 +137,7 @@ final class Redeem {
 	/**
 	 * What a code gives, or why not: this request's answer, else the session's, else Rewloy's.
 	 *
-	 * @return array{quote?:array<string,mixed>,error?:string,currency?:string}
+	 * @return array{quote?:array<string,mixed>,error?:string,currency?:string,reason?:string}
 	 */
 	public function resolve( string $code ): array {
 		$norm = RedeemCode::normalize( $code );
@@ -150,9 +150,10 @@ final class Redeem {
 	}
 
 	/**
-	 * @return array{quote?:array<string,mixed>,error?:string,currency?:string}
+	 * @param string $order_id The order asking ('' at the cart, where there is none yet).
+	 * @return array{quote?:array<string,mixed>,error?:string,currency?:string,reason?:string}
 	 */
-	private function answer( string $norm ): array {
+	private function answer( string $norm, string $order_id = '' ): array {
 		if ( is_admin() ) {
 			// Applying a coupon to an order by hand: the code is the customer's, at the customer's checkout only.
 			return array( 'error' => self::E_ADMIN );
@@ -174,15 +175,17 @@ final class Redeem {
 			return array( 'error' => self::E_UNREACHABLE );
 		}
 		try {
-			$q = self::clean_quote( $client->with_timeout( self::TIMEOUT )->quote_code( $link, $norm, self::currency(), $this->send_shopper ? $this->shopper() : '' ) );
+			$q = self::clean_quote( $this->quote( $client->with_timeout( self::TIMEOUT ), $link, $norm, $order_id ) );
 		} catch ( RewloyException $e ) {
 			if ( $e instanceof ApiError && in_array( $e->api_code, self::MISS_CODES, true ) ) {
 				$this->miss();
 			}
 			$currency = is_string( $e->details['currency'] ?? null ) ? $e->details['currency'] : '';
+			$reason   = is_string( $e->details['reason'] ?? null ) ? $e->details['reason'] : '';
 			return array(
 				'error'    => self::error_of( $e ),
 				'currency' => $currency,
+				'reason'   => $reason,
 			);
 		} catch ( \InvalidArgumentException $e ) {
 			unset( $e );
@@ -193,6 +196,26 @@ final class Redeem {
 		}
 		$this->remember( $norm, $q );
 		return array( 'quote' => $q );
+	}
+
+	/**
+	 * Rewloy's quote of a code. With an order it names it (Rewloy 1.0 answers a code the order already holds); a Rewloy
+	 * before 1.0 refuses the unknown `orderId` with `400 VALIDATION`, and the quote is asked again without it (the
+	 * order's own hold is then rebuilt from the order's record, see Holds::hold).
+	 *
+	 * @return array<string,mixed>
+	 * @throws RewloyException When Rewloy refuses or is not clear.
+	 */
+	private function quote( Client $client, string $link, string $norm, string $order_id ): array {
+		$shopper = $this->send_shopper ? $this->shopper() : '';
+		try {
+			return $client->quote_code( $link, $norm, self::currency(), $shopper, $order_id );
+		} catch ( ApiError $e ) {
+			if ( '' === $order_id || 400 !== $e->status || 'VALIDATION' !== $e->api_code ) {
+				throw $e;
+			}
+			return $client->quote_code( $link, $norm, self::currency(), $shopper );
+		}
 	}
 
 	/** Which of the plugin's messages a failed call gets: Rewloy's code for a refusal, "unreachable" for anything unclear. */
@@ -273,7 +296,7 @@ final class Redeem {
 	/**
 	 * The coupon WooCommerce builds for an answer.
 	 *
-	 * @param array{quote?:array<string,mixed>,error?:string,currency?:string} $answer
+	 * @param array{quote?:array<string,mixed>,error?:string,currency?:string,reason?:string} $answer
 	 * @param string                                                            $norm   The normalised code.
 	 * @return array<string,mixed>
 	 */
@@ -346,7 +369,7 @@ final class Redeem {
 		$answer = $this->resolve( $code );
 		if ( isset( $answer['error'] ) ) {
 			// phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- WooCommerce escapes a coupon's error where it shows it.
-			throw new \Exception( RedeemWords::refusal( $answer['error'], $answer['currency'] ?? '' ) );
+			throw new \Exception( RedeemWords::refusal( $answer['error'], $answer['currency'] ?? '', $answer['reason'] ?? '' ) );
 		}
 		$q    = $answer['quote'] ?? array();
 		$norm = RedeemCode::normalize( $code );
@@ -587,18 +610,20 @@ final class Redeem {
 	}
 
 	/**
-	 * The quote kept for an order's code, or asked again (a code bound to this shop and not yet on an order is still
-	 * answered by Rewloy inside its 45 minutes). Null with the error when there is none.
+	 * The quote kept for an order's code, or asked again, naming the order (a code bound to this shop and not yet on an
+	 * order is still answered by Rewloy inside its 45 minutes; one this order already holds is answered from the order's
+	 * side, Rewloy 1.0). The error, its currency and, for `CODE_RELEASED`, its reason when there is none.
 	 *
-	 * @return array{quote?:array<string,mixed>,error?:string,currency?:string}
+	 * @param string $order_id The order's number.
+	 * @return array{quote?:array<string,mixed>,error?:string,currency?:string,reason?:string}
 	 */
-	public function for_order( string $norm ): array {
+	public function for_order( string $norm, string $order_id = '' ): array {
 		$q = $this->memo[ $norm ]['quote'] ?? $this->cached( $norm );
 		if ( is_array( $q ) ) {
 			return array( 'quote' => $q );
 		}
-		unset( $this->memo[ $norm ] );
-		return $this->resolve( $norm );
+		$this->memo[ $norm ] = $this->answer( $norm, $order_id );
+		return $this->memo[ $norm ];
 	}
 
 	/** The code is held for this order now: its quote stays good for the order (Rewloy would call it used). */

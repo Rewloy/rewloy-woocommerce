@@ -119,7 +119,7 @@ A cancelled or failed order gives the value back at once. An order left unpaid g
 By default a gift card is a payment after tax (the KDV of the goods stays as it is), as a negative line of its own. WooCommerce lets such a line take off at most the order's total before tax, so the tax part is paid another way and the rest of the card's value stays on the card. If your accountant prefers it, switch the gift card to "As a discount" (Rewloy › Settings › Tax).
 
 = Why does a card show as "Card programme …1a2b3c" in the settings? =
-Rewloy does not tell the shop's key the names of the business's other cards. A card shows its name once a code of it has been used on an order; the shop's page in the Rewloy panel names them all.
+Rewloy 1.0 names every card the shop may take. An older Rewloy did not tell the shop's key the names of the business's other cards: a card then shows its name once a code of it has been used on an order, and the shop's page in the Rewloy panel names them all.
 
 == Privacy ==
 

@@ -51,6 +51,12 @@ final class TurkishRenderTest extends TestCase {
 		);
 	}
 
+	public function test_a_released_code_reads_in_turkish_by_its_reason(): void {
+		$this->assertSame( 'Bu kodun ayırma süresi doldu; Rewloy\'dan yeni bir kod alın.', \Rewloy\WooCommerce\RedeemWords::refusal( 'CODE_RELEASED', '', 'expired' ) );
+		$this->assertSame( 'Bu kod işletme tarafından bırakıldı; Rewloy\'dan yeni bir kod alın.', \Rewloy\WooCommerce\RedeemWords::refusal( 'CODE_RELEASED', '', 'merchant' ) );
+		$this->assertSame( 'Bu kodun ayırması sona erdi. Kartınızdan yeni bir kod oluşturun.', \Rewloy\WooCommerce\RedeemWords::refusal( 'CODE_RELEASED' ) );
+	}
+
 	public function test_what_an_order_does_for_each_card_type_reads_in_the_panels_turkish(): void {
 		Functions\when( 'number_format_i18n' )->alias( static fn( $n, $d = 0 ) => number_format( (float) $n, (int) $d, ',', '.' ) );
 		$this->assertSame( 'VIP kartı: her ödenmiş sipariş bir ziyaret sayılır ve kartın seviyesine işler. Ayrı bir kural gerekmez.', Messages::vip_note() );

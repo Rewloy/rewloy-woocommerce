@@ -62,6 +62,69 @@ final class CheckoutSettingsTest extends TestCase {
 		$this->assertSame( array( self::GIFT ), $v['ceiling'] );
 	}
 
+	public function test_the_ceiling_is_read_in_both_shapes_names_and_types_included(): void {
+		// Rewloy 1.0 (ADR 180): `[{ id, name, type }]`.
+		$v = CheckoutSettings::view( $this->link( array(), array(
+			array( 'id' => strtoupper( self::GIFT ), 'name' => 'Hediye kartı', 'type' => 'giftcard' ),
+			array( 'id' => self::DISC, 'name' => '', 'type' => 'discount' ),
+			array( 'id' => 'not-a-uuid', 'name' => 'x', 'type' => 'stamp' ),
+			array( 'name' => 'no id' ),
+			array( 'id' => self::GIFT, 'name' => 'twice', 'type' => 'giftcard' ),
+		) ) );
+		$this->assertSame( array( self::GIFT, self::DISC ), $v['ceiling'] );
+		$this->assertSame( array( self::GIFT => array( 'name' => 'Hediye kartı', 'type' => 'giftcard' ) ), $v['ceilingNames'], 'a nameless entry is only an id' );
+		// Before 1.0: bare ids, no names; and a mix is read entry by entry.
+		$v = CheckoutSettings::view( $this->link() );
+		$this->assertSame( array( self::GIFT, self::DISC ), $v['ceiling'] );
+		$this->assertSame( array(), $v['ceilingNames'] );
+		$v = CheckoutSettings::view( $this->link( array(), array( self::GIFT, array( 'id' => self::DISC, 'name' => 'İndirim', 'type' => 'discount' ) ) ) );
+		$this->assertSame( array( self::GIFT, self::DISC ), $v['ceiling'] );
+		$this->assertSame( array( self::DISC ), array_keys( $v['ceilingNames'] ) );
+		// An empty ceiling stays empty (not "no ceiling"), no ceiling stays null.
+		$this->assertSame( array(), CheckoutSettings::view( $this->link( array(), array() ) )['ceiling'] );
+		$this->assertNull( CheckoutSettings::view( $this->link( array(), null ) )['ceiling'] );
+	}
+
+	public function test_the_ceilings_own_names_need_no_call_and_beat_what_was_remembered(): void {
+		CheckoutSettings::remember( array( 'programId' => self::GIFT, 'programName' => 'Eski ad', 'type' => 'giftcard' ) );
+		$known = array(
+			self::GIFT => array( 'name' => 'Hediye kartı', 'type' => 'giftcard' ),
+			self::DISC => array( 'name' => 'İndirim kartı', 'type' => 'discount' ),
+		);
+		$this->assertSame( $known, $this->cs()->names( array( self::GIFT, self::DISC ), $known ) );
+		$this->assertSame( array(), $this->requests, 'every name is known: nothing is listed' );
+		// One name missing: the rest is asked the old way.
+		$this->script( $this->answer( 200, array( 'data' => array() ) ) );
+		$names = $this->cs()->names( array( self::GIFT, self::DISC ), array( self::DISC => $known[ self::DISC ] ) );
+		$this->assertSame( 'Eski ad', $names[ self::GIFT ]['name'] );
+		$this->assertSame( 'İndirim kartı', $names[ self::DISC ]['name'] );
+	}
+
+	public function test_ayarlar_names_every_card_from_the_ceiling_with_no_fallback_and_no_listing(): void {
+		$this->isAdmin = true;
+		$s             = $this->connected();
+		$s->save_api_key( self::PLUGIN_KEY );
+		$this->makeWebhook();
+		$ceiling = array(
+			array( 'id' => self::GIFT, 'name' => 'Hediye <i>kartı</i>', 'type' => 'giftcard' ),
+			array( 'id' => self::DISC, 'name' => 'İndirim kartı', 'type' => 'discount' ),
+		);
+		$this->script( $this->answer( 200, array( 'data' => $this->link( array(), $ceiling, array( self::DISC ) ) ) ), $this->answer( 200, array( 'data' => array() ) ) );
+		$a           = new Admin( $s, new Connection( $s, new Webhooks( $s ), $this->factory() ), static function (): void {}, null, new CheckoutSettings( $s, $this->factory() ) );
+		$_GET['tab'] = 'settings';
+		ob_start();
+		$a->render();
+		$html = (string) ob_get_clean();
+		$_GET = array();
+		$this->assertStringContainsString( 'Hediye &lt;i&gt;kartı&lt;/i&gt; (Gift card)', $html );
+		$this->assertStringContainsString( 'İndirim kartı (Discount card)', $html );
+		$this->assertStringNotContainsString( 'Card programme', $html );
+		$this->assertStringNotContainsString( 'does not tell this shop', $html, 'no note about nameless cards' );
+		foreach ( $this->requests as $r ) {
+			$this->assertStringNotContainsString( '/programs', $r['url'], 'the programmes are not listed for names' );
+		}
+	}
+
 	public function test_only_what_changed_is_sent(): void {
 		$this->script( $this->answer( 200, array( 'data' => $this->link() ) ), $this->answer( 200, array( 'data' => $this->link() ) ) );
 		$r = $this->cs()->save(

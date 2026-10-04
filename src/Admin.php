@@ -666,7 +666,7 @@ final class Admin {
 			echo '<p class="description">' . esc_html__( 'No other card can be switched on here. A person with the rights decides which of the business\'s gift cards, cashback cards, coupons and discount cards this plugin may switch on, on the shop\'s page in the Rewloy panel ("Eklentinin açabileceği kartlar").', 'rewloy-for-woocommerce' ) . '</p>';
 		} else {
 			echo '<input type="hidden" name="accepts_shown" value="1" />';
-			$names = $this->checkout()->names( $v['ceiling'] );
+			$names = $this->checkout()->names( $v['ceiling'], $v['ceilingNames'] );
 			foreach ( $v['ceiling'] as $id ) {
 				$label = isset( $names[ $id ] )
 					? $names[ $id ]['name'] . ( '' !== $names[ $id ]['type'] ? ' (' . Messages::any_type_label( $names[ $id ]['type'] ) . ')' : '' )
@@ -676,7 +676,7 @@ final class Admin {
 			}
 			echo '<p class="description">' . esc_html__( 'Off by default. The business\'s other gift cards, cashback cards, coupons and discount cards, among those a person allowed for this plugin in the Rewloy panel. A card switched off refuses new codes at once; orders already holding it finish as they are.', 'rewloy-for-woocommerce' ) . '</p>';
 			if ( count( $names ) < count( $v['ceiling'] ) ) {
-				echo '<p class="description">' . esc_html__( 'Rewloy does not tell this shop\'s key the names of cards other than its own; a card shows its name here once a code of it has been used on an order. The shop\'s page in the Rewloy panel lists them all.', 'rewloy-for-woocommerce' ) . '</p>';
+				echo '<p class="description">' . esc_html__( 'This version of Rewloy does not tell this shop\'s key the names of cards other than its own; a card shows its name here once a code of it has been used on an order. The shop\'s page in the Rewloy panel lists them all.', 'rewloy-for-woocommerce' ) . '</p>';
 			}
 		}
 		echo '</fieldset></td></tr>';

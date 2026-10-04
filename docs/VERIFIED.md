@@ -81,15 +81,12 @@ classic with HPOS off. "Passed" means the same in all four unless the row says o
 
 ## Platform findings (Rewloy)
 
-- **The ceiling has no names** (`accepts.ceiling` is ids; the plugin's key may read only its own programme). The plugin's
-  Ayarlar can name a card only after a code of it was used, which needs the card switched on first. Suggested: give the
-  ceiling (and `programIds`) as `{ id, name, type }` in `GET /v1/shops/{id}`.
-- **A quote after the hold says `CODE_USED`** for the very order that holds the code (the quote has no order id). The plugin
-  keeps the session's quote for a held code and rebuilds it from the order's record otherwise (D50); an optional `orderId`
-  on the quote would make it exact.
-- **A merchant-released or expired hold cannot be held again by the same order** (`CODE_USED`, review M1): the customer is
-  told the code "was used on another order". A distinct code (say `CODE_RELEASED`) would let the shop say "make a new code"
-  without the wrong reason.
+- **Three gaps found here, closed by Rewloy 1.0 (ADR 180) and followed by the plugin (D59), not run against a 1.0 build
+  yet (PHPUnit with stubbed answers in both shapes):** the ceiling had no names (`accepts.ceiling` was ids; now
+  `{ id, name, type }`); a quote after the hold said `CODE_USED` for the very order that holds the code (the quote now
+  takes `orderId`); a merchant-released or expired hold said `CODE_USED` when held again (now `CODE_RELEASED` with a
+  reason). The runs above were against the Rewloy of those days, where the plugin's tolerance for the old answers was
+  what worked.
 - Not a bug: WooCommerce caps a negative fee at the order's total before tax, so "payment" mode cannot cover the tax (D48);
   the design's "a gift card is a payment" holds for the part it covers.
 

@@ -31,6 +31,17 @@ final class ClientCheckoutTest extends TestCase {
 		$this->assertSame( 'abc123', $this->body()['shopper'] );
 	}
 
+	public function test_quote_names_the_order_only_when_given_and_returns_its_redemption(): void {
+		$this->script( $this->answer( 200, array( 'data' => array( 'kind' => 'balance', 'maxMinor' => 4000, 'redemption' => array( 'id' => 'r1', 'state' => 'held' ) ) ) ), $this->answer( 200, array( 'data' => array() ) ) );
+		$q = $this->client()->quote_code( self::LINK, 'RWXV5CRHBE', 'TRY', 'abc123', '17' );
+		$this->assertSame( 'r1', $q['redemption']['id'] );
+		$this->assertSame( array( 'code' => 'RWXV5CRHBE', 'currency' => 'TRY', 'shopper' => 'abc123', 'orderId' => '17' ), $this->body() );
+		$this->client()->quote_code( self::LINK, 'RWXV5CRHBE', 'TRY' );
+		$this->assertArrayNotHasKey( 'orderId', $this->body( 1 ) );
+		$this->expectException( \InvalidArgumentException::class );
+		$this->client()->quote_code( self::LINK, 'RWXV5CRHBE', 'TRY', '', 'not an order/..' );
+	}
+
 	public function test_hold_capture_release_refund_and_settings_go_where_the_api_says(): void {
 		$this->script(
 			$this->answer( 201, array( 'data' => array( 'id' => 'r1' ) ) ),

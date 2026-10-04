@@ -288,16 +288,22 @@ final class Client {
 	 * @param string $code     The code as typed (Rewloy normalises it); a bearer secret, never logged.
 	 * @param string $currency The cart's currency (ISO 4217).
 	 * @param string $shopper  An opaque, stable hash of the shopper ('' for none).
+	 * @param string $order_id The order asking, when there is one ('' for none): a code that order already holds is then
+	 *                         answered 200 with `redemption` instead of `CODE_USED` (Rewloy 1.0, ADR 180). A Rewloy
+	 *                         before 1.0 refuses the unknown field with `400 VALIDATION`.
 	 * @return array<string,mixed> kind, type, programId, programName, currency, maxMinor, percent, amountMinor, tax,
-	 *                             cardId, cardLast4, codeLast4, firstUseBy, attachBy.
+	 *                             cardId, cardLast4, codeLast4, firstUseBy, attachBy, and `redemption` with an order.
 	 */
-	public function quote_code( string $shop_id, #[\SensitiveParameter] string $code, string $currency, string $shopper = '' ): array {
+	public function quote_code( string $shop_id, #[\SensitiveParameter] string $code, string $currency, string $shopper = '', string $order_id = '' ): array {
 		$body = array(
 			'code'     => $code,
 			'currency' => strtoupper( $currency ),
 		);
 		if ( '' !== $shopper ) {
 			$body['shopper'] = $shopper;
+		}
+		if ( '' !== $order_id ) {
+			$body['orderId'] = $this->order_id( $order_id );
 		}
 		$meta = array();
 		return $this->object_of( $this->call( 'POST', '/shops/' . $this->uuid( $shop_id ) . '/checkout-codes/quote', array(), $body, '', true, $meta, true ) );

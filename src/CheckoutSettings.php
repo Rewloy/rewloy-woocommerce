@@ -54,7 +54,7 @@ final class CheckoutSettings {
 	 * The settings as the link carries them, each of its type, Rewloy's default where one is missing.
 	 *
 	 * @param array<string,mixed> $link The link (`getShop`).
-	 * @return array{tax:array{giftcard:string,cashback:string,voucher:string},refundReverses:string,holdDays:int,accepted:list<string>,ceiling:?list<string>,unbacked:int}
+	 * @return array{tax:array{giftcard:string,cashback:string,voucher:string},refundReverses:string,holdDays:int,accepted:list<string>,ceiling:?list<string>,ceilingNames:array<string,array{name:string,type:string}>,unbacked:int}
 	 */
 	public static function view( array $link ): array {
 		$s   = is_array( $link['settings'] ?? null ) ? $link['settings'] : array();
@@ -65,6 +65,7 @@ final class CheckoutSettings {
 			'holdDays'       => is_int( $s['holdDays'] ?? null ) && $s['holdDays'] >= 1 && $s['holdDays'] <= 30 ? $s['holdDays'] : self::DEFAULT_DAYS,
 			'accepted'       => array(),
 			'ceiling'        => null,
+			'ceilingNames'   => array(),
 			'unbacked'       => 0,
 		);
 		foreach ( self::TAX_KINDS as $kind ) {
@@ -75,7 +76,27 @@ final class CheckoutSettings {
 		$accepts = is_array( $link['accepts'] ?? null ) ? $link['accepts'] : array();
 		$out['accepted'] = self::uuids( $accepts['programIds'] ?? array() );
 		if ( is_array( $accepts['ceiling'] ?? null ) ) {
-			$out['ceiling'] = self::uuids( $accepts['ceiling'] );
+			// Rewloy 1.0 (ADR 180) gives `[{ id, name, type }]`; before it the list was bare ids. Either is read.
+			$out['ceiling']      = array();
+			$out['ceilingNames'] = array();
+			foreach ( $accepts['ceiling'] as $entry ) {
+				$id = is_array( $entry ) ? ( $entry['id'] ?? null ) : $entry;
+				if ( ! is_string( $id ) || 1 !== preg_match( '/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $id ) ) {
+					continue;
+				}
+				$id = strtolower( $id );
+				if ( in_array( $id, $out['ceiling'], true ) ) {
+					continue;
+				}
+				$out['ceiling'][] = $id;
+				$name             = is_array( $entry ) && is_string( $entry['name'] ?? null ) ? trim( substr( $entry['name'], 0, 120 ) ) : '';
+				if ( '' !== $name ) {
+					$out['ceilingNames'][ $id ] = array(
+						'name' => $name,
+						'type' => is_array( $entry ) && is_string( $entry['type'] ?? null ) ? substr( $entry['type'], 0, 20 ) : '',
+					);
+				}
+			}
 		}
 		$unbacked        = is_array( $link['unbacked'] ?? null ) ? $link['unbacked'] : array();
 		$out['unbacked'] = is_int( $unbacked['count'] ?? null ) ? max( 0, $unbacked['count'] ) : 0;
@@ -83,12 +104,17 @@ final class CheckoutSettings {
 	}
 
 	/**
-	 * Names of card programmes, by id: what the key may list, then what the shop's orders have shown.
+	 * Names of card programmes, by id: what the ceiling itself names (Rewloy 1.0), else what the shop's orders have
+	 * shown and what the key may list (a Rewloy before 1.0 names no card but the key's own).
 	 *
-	 * @param list<string> $ids
+	 * @param list<string>                                  $ids
+	 * @param array<string,array{name:string,type:string}> $known Names the ceiling gave.
 	 * @return array<string,array{name:string,type:string}>
 	 */
-	public function names( array $ids ): array {
+	public function names( array $ids, array $known = array() ): array {
+		if ( array() === array_diff( $ids, array_keys( $known ) ) ) {
+			return array_intersect_key( $known, array_flip( $ids ) );
+		}
 		$out  = array();
 		$seen = get_option( self::SEEN_OPTION, array() );
 		foreach ( is_array( $seen ) ? $seen : array() as $id => $p ) {
@@ -114,7 +140,7 @@ final class CheckoutSettings {
 				unset( $e );
 			}
 		}
-		return array_intersect_key( $out, array_flip( $ids ) );
+		return array_intersect_key( $known + $out, array_flip( $ids ) );
 	}
 
 	/**

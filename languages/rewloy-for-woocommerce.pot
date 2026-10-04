@@ -452,7 +452,7 @@ msgid "Off by default. The business's other gift cards, cashback cards, coupons 
 msgstr ""
 
 #: src/Admin.php:679
-msgid "Rewloy does not tell this shop's key the names of cards other than its own; a card shows its name here once a code of it has been used on an order. The shop's page in the Rewloy panel lists them all."
+msgid "This version of Rewloy does not tell this shop's key the names of cards other than its own; a card shows its name here once a code of it has been used on an order. The shop's page in the Rewloy panel lists them all."
 msgstr ""
 
 #: src/Admin.php:684
@@ -667,29 +667,29 @@ msgstr ""
 msgid "Privacy notice"
 msgstr ""
 
-#: src/CheckoutSettings.php:153
+#: src/CheckoutSettings.php:179
 msgid "Only an administrator can change the checkout settings."
 msgstr ""
 
-#: src/CheckoutSettings.php:158 src/Connection.php:437 src/Connection.php:462
+#: src/CheckoutSettings.php:184 src/Connection.php:437 src/Connection.php:462
 #: src/Panel.php:218 src/Till.php:75 src/Till.php:131 src/Till.php:172
 #: src/Till.php:192
 msgid "This shop is not connected."
 msgstr ""
 
-#: src/CheckoutSettings.php:179
+#: src/CheckoutSettings.php:205
 msgid "The hold length is a whole number of days from 1 to 30."
 msgstr ""
 
-#: src/CheckoutSettings.php:195
+#: src/CheckoutSettings.php:221
 msgid "Nothing changed."
 msgstr ""
 
-#: src/CheckoutSettings.php:201
+#: src/CheckoutSettings.php:227
 msgid "That card is not among the cards this plugin may switch on. A person with the rights adds it on the shop's page in the Rewloy panel (\"Eklentinin açabileceği kartlar\")."
 msgstr ""
 
-#: src/CheckoutSettings.php:205
+#: src/CheckoutSettings.php:231
 msgid "The checkout settings are saved in Rewloy."
 msgstr ""
 
@@ -1486,232 +1486,244 @@ msgstr ""
 msgid "Rewloy for WooCommerce needs WooCommerce to be installed and active."
 msgstr ""
 
-#: src/RedeemWords.php:29
+#: src/RedeemWords.php:30
 msgid "This Rewloy code is not valid. Copy it again from your card's page or from Rewloy Cüzdan."
 msgstr ""
 
-#: src/RedeemWords.php:31
+#: src/RedeemWords.php:32
 msgid "This code has expired. Make a new code on your card."
 msgstr ""
 
-#: src/RedeemWords.php:33
+#: src/RedeemWords.php:34
 msgid "This code was used on another order. Make a new code on your card."
 msgstr ""
 
-#: src/RedeemWords.php:35
+#: src/RedeemWords.php:38
+msgid "The hold on this code has run out. Get a new code from Rewloy."
+msgstr ""
+
+#: src/RedeemWords.php:41
+msgid "This code was released by the business. Get a new code from Rewloy."
+msgstr ""
+
+#: src/RedeemWords.php:43
+msgid "The hold on this code has ended. Make a new code on your card."
+msgstr ""
+
+#: src/RedeemWords.php:45
 msgid "Your card's balance is not enough for this code. Remove the code and make a new one on your card."
 msgstr ""
 
-#: src/RedeemWords.php:38
+#: src/RedeemWords.php:48
 msgid "This card can no longer be used."
 msgstr ""
 
-#: src/RedeemWords.php:40
+#: src/RedeemWords.php:50
 msgid "This card has no use left."
 msgstr ""
 
-#: src/RedeemWords.php:46
+#: src/RedeemWords.php:56
 msgid "This card cannot be used in this shop."
 msgstr ""
 
-#: src/RedeemWords.php:48
+#: src/RedeemWords.php:58
 msgid "This coupon can only be used in the shop."
 msgstr ""
 
 #. translators: %s: a currency code, such as TRY.
-#: src/RedeemWords.php:53
+#: src/RedeemWords.php:63
 #, php-format
 msgid "This card works in %s; your basket is in another currency."
 msgstr ""
 
-#: src/RedeemWords.php:54
+#: src/RedeemWords.php:64
 msgid "This card works in another currency than your basket."
 msgstr ""
 
-#: src/RedeemWords.php:56
+#: src/RedeemWords.php:66
 msgid "Rewloy cards cannot be used in this shop right now."
 msgstr ""
 
-#: src/RedeemWords.php:58
+#: src/RedeemWords.php:68
 msgid "This card is already used on this order."
 msgstr ""
 
-#: src/RedeemWords.php:60
+#: src/RedeemWords.php:70
 msgid "An order can use at most 3 Rewloy codes."
 msgstr ""
 
-#: src/RedeemWords.php:62
+#: src/RedeemWords.php:72
 msgid "Too many codes were tried. Try again in a few minutes."
 msgstr ""
 
-#: src/RedeemWords.php:64
+#: src/RedeemWords.php:74
 msgid "Rewloy codes are used at the checkout only."
 msgstr ""
 
-#: src/RedeemWords.php:72
+#: src/RedeemWords.php:82
 msgid "This Rewloy code cannot be used on this order. Remove it and make a new code on your card."
 msgstr ""
 
-#: src/RedeemWords.php:77
+#: src/RedeemWords.php:87
 msgid "Rewloy cannot be reached right now. Try the code again in a few minutes, or remove it and go on with the order."
 msgstr ""
 
-#: src/RedeemWords.php:84 src/RedeemWords.php:276
+#: src/RedeemWords.php:94 src/RedeemWords.php:286
 msgid "Rewloy card"
 msgstr ""
 
 #. translators: %s: the Rewloy card programme's name, such as "Hediye kartı".
-#: src/RedeemWords.php:84
+#: src/RedeemWords.php:94
 #, php-format
 msgid "Rewloy: %s"
 msgstr ""
 
-#: src/RedeemWords.php:89
+#: src/RedeemWords.php:99
 msgid "taken as a payment, on its own line"
 msgstr ""
 
-#: src/RedeemWords.php:94
+#: src/RedeemWords.php:104
 msgid "no discount: the order counts on this card"
 msgstr ""
 
 #. translators: 1: an amount, 2: the card programme's name, 3: the card number's last four characters.
-#: src/RedeemWords.php:123
+#: src/RedeemWords.php:133
 #, php-format
 msgid "Rewloy: %1$s held for this order on the %2$s (card …%3$s). It is taken from the card when the order is paid."
 msgstr ""
 
 #. translators: 1: the card programme's name, 2: the card number's last four characters.
-#: src/RedeemWords.php:126
+#: src/RedeemWords.php:136
 #, php-format
 msgid "Rewloy: the order is tied to the %1$s (card …%2$s); once paid, it counts on this card."
 msgstr ""
 
 #. translators: 1: the card programme's name, 2: the card number's last four characters.
-#: src/RedeemWords.php:129
+#: src/RedeemWords.php:139
 #, php-format
 msgid "Rewloy: the %1$s (card …%2$s) is used on this order; its use is held until the order is paid."
 msgstr ""
 
 #. translators: %s: an amount.
-#: src/RedeemWords.php:144
+#: src/RedeemWords.php:154
 #, php-format
 msgid "Rewloy: the hold had ended; %s was still on the card and was taken."
 msgstr ""
 
 #. translators: %s: an amount.
-#: src/RedeemWords.php:146
+#: src/RedeemWords.php:156
 #, php-format
 msgid "Rewloy: %s taken from the card."
 msgstr ""
 
 #. translators: 1: the card programme's name, 2: the card number's last four characters.
-#: src/RedeemWords.php:150
+#: src/RedeemWords.php:160
 #, php-format
 msgid "Rewloy: the paid order counts on the %1$s (card …%2$s)."
 msgstr ""
 
-#: src/RedeemWords.php:153
+#: src/RedeemWords.php:163
 msgid "Rewloy: the hold had ended; the card still had its use, and it was recorded."
 msgstr ""
 
-#: src/RedeemWords.php:154
+#: src/RedeemWords.php:164
 msgid "Rewloy: the card's use was recorded."
 msgstr ""
 
 #. translators: %s: an amount.
-#: src/RedeemWords.php:165
+#: src/RedeemWords.php:175
 #, php-format
 msgid "Rewloy: the hold had ended, and when the order was paid the card no longer had the balance (it had been spent, or the card was closed). The %s on this order could not be taken from the card. It shows in the Rewloy panel under E-ticaret › the shop."
 msgstr ""
 
-#: src/RedeemWords.php:167
+#: src/RedeemWords.php:177
 msgid "Rewloy: the hold had ended, and when the order was paid the card had no use left (it had been used, or the card was closed). The discount on this order could not be recorded on the card. It shows in the Rewloy panel under E-ticaret › the shop."
 msgstr ""
 
-#: src/RedeemWords.php:179
+#: src/RedeemWords.php:189
 msgid "the order was cancelled"
 msgstr ""
 
-#: src/RedeemWords.php:182
+#: src/RedeemWords.php:192
 msgid "the payment failed"
 msgstr ""
 
-#: src/RedeemWords.php:185
+#: src/RedeemWords.php:195
 msgid "the checkout did not go through"
 msgstr ""
 
 #. translators: 1: an amount, 2: why, such as "the order was cancelled".
-#: src/RedeemWords.php:189
+#: src/RedeemWords.php:199
 #, php-format
 msgid "Rewloy: %1$s released back to the card (%2$s)."
 msgstr ""
 
 #. translators: %s: why, such as "the order was cancelled".
-#: src/RedeemWords.php:193
+#: src/RedeemWords.php:203
 #, php-format
 msgid "Rewloy: the order is no longer tied to the card (%s)."
 msgstr ""
 
 #. translators: %s: why, such as "the order was cancelled".
-#: src/RedeemWords.php:196
+#: src/RedeemWords.php:206
 #, php-format
 msgid "Rewloy: the card's held use was released (%s)."
 msgstr ""
 
 #. translators: %s: an amount.
-#: src/RedeemWords.php:219
+#: src/RedeemWords.php:229
 #, php-format
 msgid "Rewloy: refunded; %s put back on the card."
 msgstr ""
 
-#: src/RedeemWords.php:221
+#: src/RedeemWords.php:231
 msgid "Rewloy: the order was refunded."
 msgstr ""
 
-#: src/RedeemWords.php:224
+#: src/RedeemWords.php:234
 msgid "A coupon or discount card used on the order is not reopened."
 msgstr ""
 
 #. translators: %s: what was taken back, such as "2 stamps" or an amount.
-#: src/RedeemWords.php:228
+#: src/RedeemWords.php:238
 #, php-format
 msgid "What this order earned on the card (%s) was taken back."
 msgstr ""
 
 #. translators: %s: what could not be taken back, such as "2 stamps" or an amount.
-#: src/RedeemWords.php:232
+#: src/RedeemWords.php:242
 #, php-format
 msgid "%s of it had already been used and could not be taken back."
 msgstr ""
 
-#: src/RedeemWords.php:239
+#: src/RedeemWords.php:249
 msgid "Rewloy: a partial refund does not change the card. If needed, refund to the card in the Rewloy panel."
 msgstr ""
 
-#: src/RedeemWords.php:244
+#: src/RedeemWords.php:254
 msgid "Rewloy: no clear answer came; a release of any hold was asked for."
 msgstr ""
 
-#: src/RedeemWords.php:249
+#: src/RedeemWords.php:259
 msgid "Rewloy: no clear answer came. It is tried again automatically, and Rewloy does the same when the order's status reaches it."
 msgstr ""
 
-#: src/RedeemWords.php:254
+#: src/RedeemWords.php:264
 msgid "Rewloy: still no clear answer after several tries. Look at the order's codes in the Rewloy panel (E-ticaret › the shop); the hold runs out by itself if the order is never taken."
 msgstr ""
 
-#: src/RedeemWords.php:259
+#: src/RedeemWords.php:269
 msgid "Rewloy: the card was closed after the order was placed, so nothing was taken; its hold runs out by itself."
 msgstr ""
 
 #. translators: %s: the reason, as the plugin words it.
-#: src/RedeemWords.php:265
+#: src/RedeemWords.php:275
 #, php-format
 msgid "Rewloy: the step was refused: %s"
 msgstr ""
 
 #. translators: %s: a number of stamps.
-#: src/RedeemWords.php:290
+#: src/RedeemWords.php:300
 #, php-format
 msgid "%s stamp"
 msgid_plural "%s stamps"
@@ -1719,7 +1731,7 @@ msgstr[0] ""
 msgstr[1] ""
 
 #. translators: %s: a number of points.
-#: src/RedeemWords.php:293
+#: src/RedeemWords.php:303
 #, php-format
 msgid "%s point"
 msgid_plural "%s points"
@@ -1727,7 +1739,7 @@ msgstr[0] ""
 msgstr[1] ""
 
 #. translators: %s: a number of visits.
-#: src/RedeemWords.php:296
+#: src/RedeemWords.php:306
 #, php-format
 msgid "%s visit"
 msgid_plural "%s visits"

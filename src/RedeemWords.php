@@ -22,8 +22,9 @@ final class RedeemWords {
 	 *
 	 * @param string $code     Rewloy's error code, or one of Redeem::E_*.
 	 * @param string $currency The card's currency, for CURRENCY_MISMATCH.
+	 * @param string $reason   Rewloy's `details.reason`, for CODE_RELEASED (`expired` or `merchant`).
 	 */
-	public static function refusal( string $code, string $currency = '' ): string {
+	public static function refusal( string $code, string $currency = '', string $reason = '' ): string {
 		switch ( $code ) {
 			case 'CODE_INVALID':
 				return __( 'This Rewloy code is not valid. Copy it again from your card\'s page or from Rewloy Cüzdan.', 'rewloy-for-woocommerce' );
@@ -31,6 +32,15 @@ final class RedeemWords {
 				return __( 'This code has expired. Make a new code on your card.', 'rewloy-for-woocommerce' );
 			case 'CODE_USED':
 				return __( 'This code was used on another order. Make a new code on your card.', 'rewloy-for-woocommerce' );
+			case 'CODE_RELEASED':
+				// A re-hold after the hold ended (Rewloy 1.0, ADR 180): never "used on another order".
+				if ( 'expired' === $reason ) {
+					return __( 'The hold on this code has run out. Get a new code from Rewloy.', 'rewloy-for-woocommerce' );
+				}
+				if ( 'merchant' === $reason ) {
+					return __( 'This code was released by the business. Get a new code from Rewloy.', 'rewloy-for-woocommerce' );
+				}
+				return __( 'The hold on this code has ended. Make a new code on your card.', 'rewloy-for-woocommerce' );
 			case 'INSUFFICIENT_BALANCE':
 				return __( 'Your card\'s balance is not enough for this code. Remove the code and make a new one on your card.', 'rewloy-for-woocommerce' );
 			case 'PASS_INACTIVE':

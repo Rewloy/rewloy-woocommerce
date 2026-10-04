@@ -11,7 +11,8 @@ Every decision and its reason: [docs/DECISIONS.md](docs/DECISIONS.md).
 Ödeme adımında Rewloy kartları: müşteri kartından aldığı tek kullanımlık kodu kupon alanına yazar.
 
 Rewloy cards at the checkout: the customer types a one-time code from their card into the coupon field. Needs
-Rewloy with ADR 179 (and its review fixes, `5328c90`/`c5f499b` on `checkout-cards`). Decisions D47–D58.
+Rewloy with ADR 179 (and its review fixes, `5328c90`/`c5f499b` on `checkout-cards`); it also follows the contract
+changes Rewloy 1.0 made (ADR 180) and still works against the Rewloy of before them. Decisions D47–D59.
 
 - **The code as a virtual coupon** (`Redeem`, D47): `woocommerce_get_shop_coupon_data` answers a code that looks like
   `RW-XXXX-XXXX` with Rewloy's quote: a cashback card or a money coupon a `fixed_cart` discount of what it may take, a
@@ -36,10 +37,16 @@ Rewloy with ADR 179 (and its review fixes, `5328c90`/`c5f499b` on `checkout-card
   in plain words with "ask your accountant", refunded orders, hold length 1–30 days. Administrators only.
 - New `Client` calls: `quote_code`, `hold_code`, `order_redemptions`, `capture_order`, `release_order`, `refund_order`,
   `update_shop_settings`, `with_timeout`; a POST keyed on its own natural key is retried once (`Retry`).
+- **Rewloy 1.0's contract** (D59), each read so that both the older and the 1.0 answer work: Ayarlar names every card
+  from `accepts.ceiling[]` (`{ id, name, type }`; bare ids are still read, then named as before from remembered names, with
+  "Card programme …xxxxxx" as the last resort); `409 CODE_RELEASED` (`details.reason` `expired` or `merchant`) is said as
+  it is, in Turkish and English, instead of "used on another order"; a quote for an order that exists sends `orderId`, and
+  the code that order already holds is answered by the quote (the rebuild from the order's record stays for a Rewloy
+  that answers `CODE_USED` or refuses the field).
 - Uninstall also removes the remembered card names and the scheduled checkout steps.
 - Verified on a real WordPress 7.1.2 / WooCommerce 11.1.2 against the real Rewloy, classic and block checkout, HPOS on
   and off: docs/VERIFIED.md.
-- Turkish for every new string; `.pot`, `.po` and `.mo` rebuilt. 470 PHPUnit tests (88 new); PHPStan level 8 and
+- Turkish for every new string; `.pot`, `.po` and `.mo` rebuilt. 481 PHPUnit tests (99 new); PHPStan level 8 and
   `bin/lint` clean.
 
 ## 0.3.0 (4 Oct 2026)

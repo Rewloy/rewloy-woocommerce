@@ -175,14 +175,15 @@ final class Holds {
 		$held  = array();
 		$total = $this->total_before_discounts( $order );
 		foreach ( $codes as $norm => $unused ) {
-			$answer = $this->redeem->for_order( $norm );
+			$answer = $this->redeem->for_order( $norm, (string) $id );
 			if ( 'CODE_USED' === ( $answer['error'] ?? '' ) ) {
-				// Rewloy calls a code used once it is on an order, this one too: a code this order already holds (its
-				// session's quote gone) is held again from what the order recorded of it.
+				// A Rewloy before 1.0 calls a code used once it is on an order, this one too (1.0 answers the quote that
+				// names the order): a code this order already holds (its session's quote gone) is held again from what
+				// the order recorded of it.
 				$answer = $this->recorded_quote( $order, $norm, $prev ) ?? $answer;
 			}
 			if ( isset( $answer['error'] ) ) {
-				$this->refuse( $order, $client, $link, $held, $norm, (string) $answer['error'], (string) ( $answer['currency'] ?? '' ) );
+				$this->refuse( $order, $client, $link, $held, $norm, (string) $answer['error'], (string) ( $answer['currency'] ?? '' ), (string) ( $answer['reason'] ?? '' ) );
 			}
 			$q      = (array) ( $answer['quote'] ?? array() );
 			$amount = $this->applied_minor( $order, $norm, $q );
@@ -194,7 +195,7 @@ final class Holds {
 				$r = $client->hold_code( $link, (string) $id, $norm, $currency, $amount, $total );
 			} catch ( RewloyException $e ) {
 				if ( $e instanceof ApiError && ! $e->outcome_unknown() && 429 !== $e->status ) {
-					$this->refuse( $order, $client, $link, $held, $norm, '' !== $e->api_code ? $e->api_code : 'REFUSED', is_string( $e->details['currency'] ?? null ) ? $e->details['currency'] : '' );
+					$this->refuse( $order, $client, $link, $held, $norm, '' !== $e->api_code ? $e->api_code : 'REFUSED', is_string( $e->details['currency'] ?? null ) ? $e->details['currency'] : '', is_string( $e->details['reason'] ?? null ) ? $e->details['reason'] : '' );
 				}
 				$this->unclear( $order );
 			} catch ( \InvalidArgumentException $e ) {
@@ -317,7 +318,7 @@ final class Holds {
 	 * @param array<string,array<string,mixed>> $held The holds made in this call.
 	 * @throws \Exception Always.
 	 */
-	private function refuse( \WC_Order $order, Client $client, string $link, array $held, string $norm, string $code, string $currency ): never {
+	private function refuse( \WC_Order $order, Client $client, string $link, array $held, string $norm, string $code, string $currency, string $reason = '' ): never {
 		$this->redeem->forget( $norm );
 		if ( array() !== $held || self::any_held( self::read( $order ) ) ) {
 			try {
@@ -328,7 +329,7 @@ final class Holds {
 			}
 		}
 		// phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- shown escaped by WooCommerce.
-		throw new \Exception( RedeemWords::refusal( $code, $currency ) );
+		throw new \Exception( RedeemWords::refusal( $code, $currency, $reason ) );
 	}
 
 	/**

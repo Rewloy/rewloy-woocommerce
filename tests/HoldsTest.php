@@ -252,6 +252,97 @@ final class HoldsTest extends TestCase {
 		$this->assertStringNotContainsString( 'held for this order', $this->notes( $o ), 'nothing changed, no new note' );
 	}
 
+	/** An API refusal with its `details`. */
+	private function refusal409( string $code, array $details ): array {
+		return $this->answer( 409, array( 'error' => array( 'code' => $code, 'message' => 'x', 'requestId' => 'req-1', 'status' => 409, 'details' => $details ) ) );
+	}
+
+	private function recordedOrder(): \WC_Order {
+		$o                      = $this->order();
+		$row                    = Holds::clean( $this->redemption() );
+		$row['ref']             = RedeemCode::ref( self::NORM );
+		$o->meta[ Holds::META ] = json_encode( array( $row ) );
+		return $o;
+	}
+
+	public function test_a_lost_quote_is_asked_again_naming_the_order_and_rewloy_1_0_answers_the_orders_own_code(): void {
+		// Rewloy 1.0 (ADR 180): the quote that names the order is answered 200 with the order's `redemption`.
+		$o = $this->recordedOrder();
+		$this->script(
+			$this->answer( 200, array( 'data' => array_merge( $this->quoteData(), array( 'firstUseBy' => '2026-10-04T12:00:00Z', 'attachBy' => '2026-10-04T12:45:00Z', 'redemption' => $this->redemption() ) ) ) ),
+			$this->answer( 200, array( 'data' => $this->redemption() ) )
+		);
+		$this->holds()->hold( $o );
+		$this->assertCount( 2, $this->requests, 'one quote, one hold: no CODE_USED round' );
+		$this->assertStringEndsWith( '/checkout-codes/quote', $this->requests[0]['url'] );
+		$this->assertSame( '17', json_decode( $this->requests[0]['args']['body'], true )['orderId'] );
+		$this->assertStringEndsWith( '/orders/17/redemptions', $this->requests[1]['url'] );
+		$this->assertSame( 4000, json_decode( $this->requests[1]['args']['body'], true )['amountMinor'] );
+		$this->assertStringNotContainsString( 'held for this order', $this->notes( $o ), 'nothing changed, no new note' );
+	}
+
+	public function test_a_session_quote_is_used_without_asking_and_the_cart_never_names_an_order(): void {
+		$this->quoted();
+		$this->script( $this->answer( 201, array( 'data' => $this->redemption() ) ) );
+		$this->holds()->hold( $this->order() );
+		$this->assertCount( 1, $this->requests, 'the session\'s quote is good: only the hold is called' );
+		$this->script( $this->answer( 200, array( 'data' => $this->quoteData() ) ) );
+		$this->session->data = array();
+		$this->redeem()->coupon_data( false, strtolower( self::RW ) );
+		$this->assertArrayNotHasKey( 'orderId', json_decode( $this->requests[1]['args']['body'], true ), 'at the cart there is no order yet' );
+	}
+
+	public function test_a_rewloy_before_1_0_that_refuses_the_order_id_is_asked_again_without_it_and_its_code_used_answer_is_still_met(): void {
+		$o = $this->recordedOrder();
+		$this->script(
+			$this->failure( 400, 'VALIDATION' ),
+			$this->failure( 409, 'CODE_USED' ),
+			$this->answer( 200, array( 'data' => $this->redemption() ) )
+		);
+		$this->holds()->hold( $o );
+		$this->assertCount( 3, $this->requests );
+		$this->assertSame( '17', json_decode( $this->requests[0]['args']['body'], true )['orderId'] );
+		$this->assertArrayNotHasKey( 'orderId', json_decode( $this->requests[1]['args']['body'], true ) );
+		$this->assertStringEndsWith( '/orders/17/redemptions', $this->requests[2]['url'] );
+		$this->assertSame( 4000, json_decode( $this->requests[2]['args']['body'], true )['amountMinor'] );
+	}
+
+	public function test_a_validation_error_without_an_order_id_is_not_asked_again(): void {
+		$this->script( $this->failure( 400, 'VALIDATION' ) );
+		$this->redeem()->coupon_data( false, strtolower( self::RW ) );
+		$this->assertCount( 1, $this->requests );
+	}
+
+	public function test_a_code_released_at_the_quote_is_told_by_its_reason(): void {
+		foreach ( array(
+			'expired'  => 'The hold on this code has run out. Get a new code from Rewloy.',
+			'merchant' => 'This code was released by the business. Get a new code from Rewloy.',
+			''         => 'The hold on this code has ended. Make a new code on your card.',
+		) as $reason => $words ) {
+			$this->requests = array();
+			$this->session  = new \FakeSession();
+			$this->script( $this->refusal409( 'CODE_RELEASED', '' === $reason ? array() : array( 'reason' => $reason ) ) );
+			$o = $this->order();
+			$this->assertSame( $words, $this->refused( fn() => $this->holds()->hold( $o ) ), $reason );
+			$this->assertStringNotContainsString( 'another order', $words );
+		}
+	}
+
+	public function test_a_code_released_at_the_hold_is_told_by_its_reason_and_lets_the_orders_other_holds_go(): void {
+		$second = RedeemCodeTest::code( 'BBBBBBB' );
+		$this->quoted();
+		$this->session->data[ Redeem::SESSION ][ RedeemCode::normalize( $second ) ] = array( 'q' => $this->quoteData( array( 'cardId' => 'b' ) ), 'at' => time() );
+		$o                    = $this->order();
+		$o->items['coupon'][] = new \WC_Order_Item_Coupon( strtolower( $second ), '10', '2' );
+		$this->script(
+			$this->answer( 201, array( 'data' => $this->redemption() ) ),
+			$this->refusal409( 'CODE_RELEASED', array( 'reason' => 'expired' ) ),
+			$this->answer( 200, array( 'data' => array( $this->redemption( array( 'state' => 'released', 'releaseReason' => 'shop' ) ) ) ) )
+		);
+		$this->assertSame( 'The hold on this code has run out. Get a new code from Rewloy.', $this->refused( fn() => $this->holds()->hold( $o ) ) );
+		$this->assertStringEndsWith( '/orders/17/release', $this->requests[2]['url'] );
+	}
+
 	private function heldOrder( string $status, array $row = array() ): \WC_Order {
 		$o                      = $this->order( $status );
 		$r                      = Holds::clean( $this->redemption( $row ) );

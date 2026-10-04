@@ -688,9 +688,11 @@ shows). Both fire after the order exists and before the gateway is called (read 
   the pending release.
 - **A pending order paid again with other codes** (the customer removed one and retried): holds of codes the order no
   longer carries are released first, then the order's codes are held (a re-hold of a released one, inside 45 minutes).
-- **A code the order already holds, its session quote gone**: Rewloy says `CODE_USED` (it is used, by this order); the
-  plugin rebuilds the quote from what the order recorded of it (kind, programme, and the payment mode from the order's
-  own fee line) and holds again, which Rewloy answers as it stands.
+- **A code the order already holds, its session quote gone**: the plugin asks again, naming the order (`orderId`), and
+  Rewloy 1.0 answers 200 with the quote as the order sees it and the order's `redemption` (D59). A Rewloy before 1.0
+  said `CODE_USED` (it is used, by this order); the plugin still rebuilds the quote from what the order recorded of it
+  (kind, programme, and the payment mode from the order's own fee line) and holds again, which Rewloy answers as it
+  stands.
 
 **D51. The capture: before the order is marked paid, where the gateway allows.** Rewloy's review: the signed paid webhook
 takes the WHOLE hold when it arrives first. So the capture runs in `woocommerce_pre_payment_complete` (a gateway's
@@ -727,11 +729,11 @@ decides"), what a refunded order takes back, and the hold length (1–30 days). 
 disabled and the save refuses them (D45's pattern: `manage_options`). A connection made with a key of one's own has no
 ceiling; the screen says its cards are what that key may use. A warning shows when WooCommerce's coupons are off (no
 coupon field, no code can be typed).
-- **The ceiling's names are not Rewloy's to give the key** (a platform gap, reported): `accepts.ceiling` is ids only and
-  the key's `programs.read` covers its own programme only. The screen names a card from the codes the shop's orders have
-  seen (an option, `rewloy_wc_seen_programs`, filled from hold answers, removed on uninstall), else "Card programme …1a2b3c",
-  and says the panel's shop page names them all. On a fresh connection every other card is nameless until it is used,
-  which it cannot be until it is switched on: the platform should add `{id, name, type}` to the ceiling.
+- **The ceiling names its cards** (Rewloy 1.0, ADR 180; D59): `accepts.ceiling` is `[{ id, name, type }]`, so the screen
+  names every card from the answer it already reads, with no further call. A Rewloy before 1.0 gave bare ids and the
+  key's `programs.read` covers its own programme only; against it the screen still names a card from the codes the
+  shop's orders have seen (an option, `rewloy_wc_seen_programs`, filled from hold answers, removed on uninstall), else
+  "Card programme …1a2b3c", and says the panel's shop page names them all. The plugin reads either shape.
 
 **D55. A value coupon never saves more than the code holds.** WooCommerce takes a `fixed_cart` amount as prices are
 entered: with tax when prices include tax (Turkish shops, usually), without tax otherwise, where a 40 coupon would save 48
@@ -754,13 +756,36 @@ other cards are off until switched on; pausing the link stops codes too (`SHOP_P
 all turns coupons off in WooCommerce or switches nothing on; a separate WordPress switch would be a second place to
 disagree with the panel (decided by default).
 
+**D59. Rewloy 1.0's contract changes (Rewloy ADR 180 §1), before 0.4.0 is released.** Three changes the platform made
+for its 1.0, all read tolerantly so the plugin works against the Rewloy in production now and against 1.0.
+- **The ceiling's names.** `accepts.ceiling` is `[{ id, name, type }]` instead of bare ids (`accepts.programIds` is
+  unchanged). `CheckoutSettings::view` reads each entry as either shape (an id string, or an object with `id`; a
+  `name` and a `type` when it has them) and `names()` takes what the ceiling named first, asking nothing more when every
+  card is named; the remembered names and the programme list stay as the answer for the old shape (D54).
+- **`409 CODE_RELEASED`, `details.reason: expired|merchant`**: a re-hold refused after the hold expired or the business
+  released it by hand (before: `CODE_USED`, which told the customer "used on another order"). Said in the customer's
+  words, by reason: the hold ran out ("Bu kodun ayırma süresi doldu; Rewloy'dan yeni bir kod alın."), or the business
+  released it ("Bu kod işletme tarafından bırakıldı; Rewloy'dan yeni bir kod alın."), and without a reason, that the hold
+  ended and a new code is made on the card. It comes at the quote that names the order and at the hold; at both the
+  checkout is refused as for any refusal (D50). It does not count against the session's refused-code budget (D49): the
+  code is the customer's own, only its hold is over. `CODE_USED` keeps its words, for a code on another order.
+- **`orderId` on the quote.** Where the plugin quotes for an order that exists (`Redeem::for_order`, called by the hold
+  when the session's quote is gone) it sends `orderId`; a code that order already holds is answered 200 with the quote as
+  the order sees it (its own hold counts as available) and `redemption`. The plugin does not need the `redemption` (the
+  hold that follows is the same natural-key call and answers the same row), so it is not kept. The cart's quote, before
+  any order, sends none. **Kept for the old answer:** a Rewloy before 1.0 refuses the unknown field with `400 VALIDATION`
+  (its bodies take no extra properties), so that one quote is asked again without `orderId`, once, and a `CODE_USED`
+  answer for a code the order's record holds is still rebuilt from the record (D50). Only a quote naming an order, only
+  on the lost-session path, so the second call is rare.
+
 **Known limits (0.4.0)**
 - A payment line (a gift card by default) pays at most the order's total before tax (D48).
 - An order edited by hand after its hold (items or coupons changed in the admin) is captured at what was held.
 - A code released by the merchant or expired cannot be held again for the same order: the customer makes a new code
-  (Rewloy's review, M1); the message says "used on another order", Rewloy's code for it.
+  (Rewloy's review, M1); Rewloy 1.0 says `CODE_RELEASED` and the message says why (D59); a Rewloy before 1.0 said
+  `CODE_USED` and the message said "used on another order".
 - The block checkout's coupon chip shows the code, not "Rewloy: <card>" (D47).
-- The other cards' names (D54).
+- Against a Rewloy before 1.0 the other cards' names (D54).
 
 **What the platform could still add** (for the next brief): `listShopOrders` filterable by
 `orderId` (or an `order` in `getPass`), so the plugin could check an `unknown` order against
