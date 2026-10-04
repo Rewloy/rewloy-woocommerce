@@ -151,7 +151,7 @@ final class Admin {
 			'cards' => 'watch',
 			'till'  => 'till',
 		)[ $tab ] ?? '';
-		if ( '' === $script ) {
+		if ( '' === $script || ( 'till' === $script && ! current_user_can( Capability::TILL ) ) ) {
 			return;
 		}
 		wp_enqueue_script( 'rewloy-wc-' . $script, plugins_url( 'assets/' . $script . '.js', REWLOY_WC_FILE ), array(), Plugin::VERSION, true );
@@ -197,6 +197,8 @@ final class Admin {
 			'points'      => __( 'Points', 'rewloy-for-woocommerce' ),
 			'rewardNo'    => __( 'Reward number (from 0)', 'rewloy-for-woocommerce' ),
 			'confirm'     => __( 'This spends something of the customer\'s. Go ahead?', 'rewloy-for-woocommerce' ),
+			'pendingNote' => __( 'An earlier press got no clear answer, so it may or may not have been recorded. Until a clear answer comes, the sale and the card\'s buttons are locked. "Try again" sends that same press; Rewloy never writes it twice.', 'rewloy-for-woocommerce' ),
+			'pendingFirst' => __( 'An earlier press is still waiting for a clear answer. Press "Try again" for it first.', 'rewloy-for-woocommerce' ),
 			'customer'    => __( 'Open the customer in Rewloy', 'rewloy-for-woocommerce' ),
 		);
 	}
@@ -266,6 +268,10 @@ final class Admin {
 				$before    = $this->settings->get()['account_tab'];
 				$clean['invite']      = $clean['invite'] && $connected;
 				$clean['account_tab'] = $clean['account_tab'] && $connected;
+				// Who may use the till is an administrator's choice (D45): anyone else's form keeps what was saved.
+				if ( ! current_user_can( 'manage_options' ) ) {
+					$clean['till_shop_managers'] = $this->settings->get()['till_shop_managers'];
+				}
 				$this->settings->update( $clean );
 				if ( $before !== $clean['account_tab'] ) {
 					update_option( Plugin::FLUSH_OPTION, '1', false );
@@ -624,6 +630,10 @@ final class Admin {
 		echo '<tr><th scope="row">' . esc_html__( 'My Account tab', 'rewloy-for-woocommerce' ) . '</th><td>';
 		echo '<label><input type="checkbox" name="account_tab" value="1"' . checked( $s['account_tab'], true, false ) . ' /> ' . esc_html__( 'Add a "My loyalty card" tab to My Account', 'rewloy-for-woocommerce' ) . '</label>';
 		echo '<p class="description">' . esc_html__( 'The tab does not show card data. WooCommerce does not verify that an account\'s e-mail is the person\'s own, so showing a card by e-mail would let anyone who registers with someone else\'s address see their card. The tab sends the customer to Rewloy Cüzdan, where they prove their address with a code, and shows your join link. It makes no call to Rewloy.', 'rewloy-for-woocommerce' ) . '</p></td></tr>';
+		$admin = current_user_can( 'manage_options' );
+		echo '<tr><th scope="row">' . esc_html__( 'Till', 'rewloy-for-woocommerce' ) . '</th><td>';
+		echo '<label><input type="checkbox" name="till_shop_managers" value="1"' . checked( $s['till_shop_managers'], true, false ) . ( $admin ? '' : ' disabled="disabled"' ) . ' /> ' . esc_html__( 'Shop managers may use the till too', 'rewloy-for-woocommerce' ) . '</label>';
+		echo '<p class="description">' . esc_html__( 'The till (Rewloy › Till) spends customers\' rewards and balances, so by default only administrators may use it, even when Rewloy has turned it on for this shop. Tick this to let shop managers use it as well. Only an administrator can change this.', 'rewloy-for-woocommerce' ) . '</p></td></tr>';
 		echo '</tbody></table>';
 		submit_button( __( 'Save', 'rewloy-for-woocommerce' ) );
 		echo '</form>';

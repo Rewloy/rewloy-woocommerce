@@ -177,4 +177,29 @@ final class TillTest extends TestCase {
 		$this->assertSame( array( 'action' => 'spend-points', 'locationId' => self::BRANCH, 'points' => 50 ), json_decode( $this->requests[1]['args']['body'], true ) );
 		$this->assertStringContainsString( 'Spend points', $r['message'] );
 	}
+
+	/** The review's M1 (its RetryLeakTest): Rewloy wrote the sale, then the card could not be read again. */
+	public function test_a_written_sale_whose_refresh_fails_is_a_success_and_never_a_retry(): void {
+		$err = new \WP_Error( 'http_request_failed', 'timeout' );
+		$this->script(
+			$this->meAbilities( array( 'view', 'till' ) ),
+			$this->answer( 200, array( 'data' => array( 'type' => 'stamp', 'applied' => 'stamps', 'credited' => 1, 'balance' => 4, 'duplicate' => false, 'rewardReady' => false, 'rewardsReady' => 0 ) ) ),
+			$err, $err, $err, $err, $err
+		);
+		$r = $this->till()->sale( self::SERIAL, '100', '', self::PRESS );
+		$this->assertTrue( $r['ok'] );
+		$this->assertArrayNotHasKey( 'retry', $r, 'a written press must not be offered again' );
+		$this->assertNull( $r['card'] );
+		$this->assertStringContainsString( '1 stamp added', $r['message'] );
+		$this->assertStringContainsString( 'could not be refreshed', $r['message'] );
+	}
+
+	public function test_a_written_action_whose_refresh_fails_is_a_success_and_never_a_retry(): void {
+		$err = new \WP_Error( 'http_request_failed', 'timeout' );
+		$this->script( $this->meAbilities( array( 'till' ) ), $this->answer( 200, array( 'data' => array( 'balance' => 0, 'duplicate' => false ) ) ), $err, $err, $err );
+		$r = $this->till()->action( self::SERIAL, 'redeem-stamps', array(), self::PRESS );
+		$this->assertTrue( $r['ok'] );
+		$this->assertArrayNotHasKey( 'retry', $r );
+		$this->assertStringContainsString( 'could not be refreshed', $r['message'] );
+	}
 }

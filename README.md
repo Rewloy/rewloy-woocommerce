@@ -24,7 +24,9 @@ Cüzdan'da, her yerde web kartında açılır. Kasada QR okutulur. Online satı�
     karakteriyle), sekme açıkken 30 saniyede bir yenilenir; numarayla kart sorgulama;
   - *Kasa*: kartı numarasıyla ya da USB/Bluetooth okuyucuyla okutma, şube uyarıları,
     **satış** (tutar ve fiş numarası) ve kartın kendi işlemleri (ödül, bakiye, kupon),
-    harcayanlar onay ister; yalnız bir şubede;
+    harcayanlar onay ister; yalnız bir şubede; varsayılan olarak yalnız yöneticiler (`rewloy_wc_till`;
+    Ayarlar'da "Mağaza yöneticileri de kasayı kullanabilir"); net yanıt gelmeyen basış bekler, kasa kilitlenir,
+    "Tekrar dene" aynı anahtarla gönderir;
   - *Ayarlar*: bağlantı ve seçenekler, eskisi gibi (WooCommerce › Rewloy de buraya açılır).
 
   Eklentinin neler yapabileceğini Rewloy söyler (`GET /v1/me`): **Görüntüleme**

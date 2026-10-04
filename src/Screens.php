@@ -164,6 +164,11 @@ final class Screens {
 	/* ------------------------------------------------------------------ Kasa */
 
 	public function till(): void {
+		if ( ! current_user_can( Capability::TILL ) ) {
+			echo '<div class="notice notice-info inline"><p><strong>' . esc_html__( 'The till is for administrators on this site.', 'rewloy-for-woocommerce' ) . '</strong> ';
+			echo esc_html__( 'It spends customers\' rewards and balances. An administrator can let shop managers use it too, under Rewloy › Settings.', 'rewloy-for-woocommerce' ) . '</p></div>';
+			return;
+		}
 		$a = $this->panel->abilities();
 		if ( ! $a['till'] ) {
 			if ( '' !== $a['error'] ) {

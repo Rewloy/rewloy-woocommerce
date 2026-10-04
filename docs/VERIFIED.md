@@ -15,6 +15,11 @@ Rewloy (where no write may be made from a check) and production did not yet have
 | `assets/till.js` | the real `Screens::till()` markup with WordPress's admin styles and a mocked admin-ajax, in Chromium at desktop and 375 px | a scanned `https://rewloy.com/p/…?k=…` left only the number in the field and sent only the number; a sale with no answer offered "Tekrar dene", which resent the same key and body; the next press had a new key; no horizontal scroll at 375 px |
 | The screens in the real WordPress | the 0.3.0 zip installed in the local WordPress 7.1.2 / WooCommerce 11.1.2 (Turkish), connected to production Rewloy (read-only calls only: `me`, `getShop`, `listShopOrders`) | Özet, Kartlar, Kasa and Ayarlar render at desktop and 375 px with no horizontal scroll; the menu and WooCommerce › Rewloy (now a link to Ayarlar) both work; production's `me` names no abilities, so Kartlar and Kasa say they are off and link to the shop link's page, as a shop connected before 0.3.0 should |
 
+After the security review (same day): the harness again, with two lost answers in a row and a page reload
+between them: the sale form and the card's buttons locked while the press was pending, the pending press survived
+the reload, "Tekrar dene" sent the same key each time (one key for all three attempts), and the clear answer
+unlocked them.
+
 Not run: the Kartlar refresh and the till in the real WordPress against a Rewloy that grants the
 abilities (they need production on ADR 178, or a second WordPress pointed at a local Rewloy with
 `REWLOY_API_URL` on a https or localhost origin the container can reach).

@@ -321,4 +321,67 @@ final class PanelScreensTest extends TestCase {
 		$this->assertSame( '6f1c2e8a-3b4d-4c5e-8f60-718293a4b5c6', $this->requests[1]['args']['headers']['Idempotency-Key'] );
 		$this->assertSame( 9990, json_decode( $this->requests[1]['args']['body'], true )['amountMinor'] );
 	}
+
+	/* ------------------------------------------------------- who uses the till */
+
+	/** A shop manager: manage_woocommerce, not manage_options, and not the till unless given. */
+	private function asShopManager( bool $till = false ): void {
+		Functions\when( 'current_user_can' )->alias( static fn( string $cap ) => 'manage_options' === $cap ? false : ( \Rewloy\WooCommerce\Capability::TILL === $cap ? $till : true ) );
+	}
+
+	public function test_the_till_capability_is_administrators_and_shop_managers_only_when_an_administrator_says(): void {
+		Functions\when( 'apply_filters' )->alias( static fn( string $hook, $value ) => $value );
+		$cap   = new \Rewloy\WooCommerce\Capability( $this->settings );
+		$till  = array( 'rewloy_wc_till' );
+		$admin = array( 'manage_options' => true, 'manage_woocommerce' => true );
+		$mgr   = array( 'manage_woocommerce' => true );
+		$this->assertTrue( $cap->grant( $admin, $till )['rewloy_wc_till'] ?? false );
+		$this->assertArrayNotHasKey( 'rewloy_wc_till', $cap->grant( $mgr, $till ), 'off by default for shop managers' );
+		$this->assertSame( $mgr, $cap->grant( $mgr, array( 'edit_posts' ) ), 'other checks untouched' );
+		$this->settings->update( array( 'till_shop_managers' => true ) );
+		$this->assertTrue( $cap->grant( $mgr, $till )['rewloy_wc_till'] ?? false );
+		$this->assertArrayNotHasKey( 'rewloy_wc_till', $cap->grant( array( 'edit_posts' => true ), $till ), 'never anyone without manage_woocommerce' );
+		Functions\when( 'apply_filters' )->alias( static fn( string $hook, $value ) => 'rewloy_wc_till' === $hook ? false : $value );
+		$this->assertArrayNotHasKey( 'rewloy_wc_till', $cap->grant( $admin, $till ), 'the filter decides' );
+	}
+
+	public function test_without_the_till_capability_the_till_tab_its_script_and_its_ajax_are_closed(): void {
+		$this->asShopManager();
+		$this->script( $this->meAbilities( array( 'view', 'till' ) ) );
+		$html = html_entity_decode( $this->render( 'till' ), ENT_QUOTES );
+		$this->assertStringContainsString( 'The till is for administrators on this site.', $html );
+		$this->assertStringNotContainsString( 'rewloy-wc-till-card', $html );
+		$_GET = array( 'tab' => 'till' );
+		$this->admin()->enqueue( 'toplevel_page_rewloy-for-woocommerce' );
+		$this->assertNotContains( 'rewloy-wc-till', $this->scripts );
+		$this->requests = array();
+		$_POST          = array( 'serial' => self::SERIAL, 'amount' => '10', 'key' => '6f1c2e8a-3b4d-4c5e-8f60-718293a4b5c6' );
+		foreach ( array( 'till_lookup', 'till_sale', 'till_action' ) as $m ) {
+			$this->ajax()->{$m}();
+		}
+		$this->assertSame( array( 403, 403, 403 ), array_column( $this->sent, 1 ) );
+		$this->assertSame( array(), $this->requests );
+		// Watching is a shop manager's: the activity refresh still answers.
+		$this->script( $this->meAbilities( array( 'view' ) ), $this->activityAnswer() );
+		$this->ajax()->activity();
+		$this->assertSame( 200, $this->sent[3][1] );
+	}
+
+	public function test_only_an_administrator_changes_who_may_use_the_till(): void {
+		Functions\when( 'checked' )->alias( static fn( $a, $b = true, $echo = true ) => $a == $b ? ' checked="checked"' : '' );
+		$admin = new Admin( $this->settings, new Connection( $this->settings, new Webhooks( $this->settings ), $this->factory() ), static function (): void {}, $this->panel() );
+		$_POST = array( 'till_shop_managers' => '1' );
+		$this->asShopManager();
+		$admin->handle_save_options();
+		$this->assertFalse( $this->settings->get()['till_shop_managers'], 'a shop manager cannot open the till to shop managers' );
+		$this->script( $this->shopAnswer(), $this->ordersAnswer() );
+		$html = $this->render( 'settings' );
+		$this->assertMatchesRegularExpression( '/name="till_shop_managers" value="1" disabled="disabled"/', $html );
+		Functions\when( 'current_user_can' )->justReturn( true );
+		$admin->handle_save_options();
+		$this->assertTrue( $this->settings->get()['till_shop_managers'] );
+		$_POST = array();
+		$admin->handle_save_options();
+		$this->assertFalse( $this->settings->get()['till_shop_managers'], 'unticked by an administrator: off again' );
+	}
 }

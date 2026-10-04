@@ -54,6 +54,7 @@ final class Plugin {
 		( new Checkout( $settings, $issuer ) )->register();
 		( new Account( $settings ) )->register();
 		if ( is_admin() ) {
+			( new Capability( $settings ) )->register();
 			$panel = new Panel( $settings, $factory, Links::for_site() );
 			( new Admin( $settings, new Connection( $settings, $webhooks, $factory ), null, $panel ) )->register();
 			( new Ajax( $panel, new Till( $panel ) ) )->register();

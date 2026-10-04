@@ -6,8 +6,10 @@
  *   server, which checks the person's capability and the nonce again.
  * - From a scanned card link only the card number is taken; the link (and its private `k`) is cleared from the field
  *   at once and never sent, stored or logged.
- * - Each button press gets its own Idempotency-Key (a random UUID). If no clear answer comes, "Try again" sends the
- *   SAME press with the SAME key, so Rewloy never writes it twice; a new press gets a new key.
+ * - Each button press gets its own Idempotency-Key (a random UUID). If no clear answer comes, the press is kept as
+ *   PENDING (in this tab's sessionStorage, so a reload keeps it): the sale form and the card's buttons are locked,
+ *   "Try again" sends the SAME press with the SAME key, and a press with the same payload reuses that key. Only a
+ *   clear answer unlocks them. So Rewloy never writes one press twice (the review's M1).
  * - Everything from the server is written as text, never as HTML.
  */
 ( function () {
@@ -28,6 +30,65 @@
 	var actionsBox = document.getElementById( 'rewloy-wc-till-actions' );
 	var serial = '';
 	var busy = false;
+	var PENDING = 'rewloy-wc-till-pending';
+	var pending = loadPending();
+
+	function loadPending() {
+		try {
+			var p = JSON.parse( window.sessionStorage.getItem( PENDING ) || 'null' );
+			return p && p.key && p.action ? p : null;
+		} catch ( e ) {
+			return null;
+		}
+	}
+
+	/** The payload without its key, in a fixed order: two presses are the same when these are. */
+	function shape( p ) {
+		var out = {};
+		Object.keys( p ).sort().forEach( function ( k ) {
+			if ( k !== 'key' ) {
+				out[ k ] = String( p[ k ] );
+			}
+		} );
+		return JSON.stringify( out );
+	}
+
+	function setPending( p ) {
+		pending = p;
+		try {
+			if ( p ) {
+				window.sessionStorage.setItem( PENDING, JSON.stringify( p ) );
+			} else {
+				window.sessionStorage.removeItem( PENDING );
+			}
+		} catch ( e ) {
+			// Storage refused (a private window): the lock still holds while this page is open.
+		}
+		lock();
+	}
+
+	/** While a press waits for a clear answer, nothing else may be written. */
+	function lock() {
+		var on = Boolean( pending );
+		Array.prototype.forEach.call( saleForm.querySelectorAll( 'button' ), function ( b ) {
+			b.disabled = on;
+		} );
+		Array.prototype.forEach.call( actionsBox.querySelectorAll( 'button[data-op]' ), function ( b ) {
+			b.disabled = on || b.getAttribute( 'data-ready' ) !== '1';
+		} );
+	}
+
+	/** A write press: the pending press's key when the payload is the same, a new key otherwise. */
+	function press( payload ) {
+		payload.key = pending && shape( pending ) === shape( payload ) ? pending.key : newKey();
+		return payload;
+	}
+
+	function retryPending() {
+		if ( pending ) {
+			send( pending, answered );
+		}
+	}
 
 	/** A version 4 UUID: the press's Idempotency-Key. */
 	function newKey() {
@@ -109,6 +170,11 @@
 		if ( busy ) {
 			return;
 		}
+		var write = Boolean( payload.key );
+		if ( write && pending && shape( pending ) !== shape( payload ) ) {
+			say( t.pendingFirst, 'error', retryPending );
+			return;
+		}
 		busy = true;
 		var form = new FormData();
 		form.append( 'nonce', cfg.nonce );
@@ -125,20 +191,23 @@
 				if ( ! data || typeof data !== 'object' ) {
 					throw new Error( 'no answer' );
 				}
-				if ( data.retry && payload.key ) {
-					say( data.message, 'error', function () {
-						send( payload, done );
-					} );
+				if ( data.retry && write ) {
+					setPending( payload );
+					say( data.message, 'error', retryPending );
 					return;
+				}
+				if ( write ) {
+					setPending( null );
 				}
 				done( data );
 			} )
 			.catch( function () {
 				busy = false;
-				// No answer: the press may or may not have been recorded. A lookup is simply asked again.
-				say( t.offline, 'error', payload.key ? function () {
-					send( payload, done );
-				} : null );
+				// No answer: the press may or may not have been recorded; it stays pending. A lookup is simply asked again.
+				if ( write ) {
+					setPending( payload );
+				}
+				say( t.offline, 'error', write ? retryPending : null );
 			} );
 	}
 
@@ -233,16 +302,18 @@
 		} );
 		var b = el( 'button', op.label, 'button' + ( op.spends ? '' : ' button-secondary' ) );
 		b.type = 'button';
-		b.disabled = ! op.ready;
+		b.setAttribute( 'data-op', op.action );
+		b.setAttribute( 'data-ready', op.ready ? '1' : '0' );
+		b.disabled = ! op.ready || Boolean( pending );
 		b.addEventListener( 'click', function () {
 			if ( op.spends && ! window.confirm( t.confirm ) ) {
 				return;
 			}
-			var payload = { action: 'rewloy_wc_till_action', serial: serial, operation: op.action, key: newKey() };
+			var payload = { action: 'rewloy_wc_till_action', serial: serial, operation: op.action };
 			Object.keys( inputs ).forEach( function ( k ) {
 				payload[ k ] = inputs[ k ].value;
 			} );
-			send( payload, answered );
+			send( press( payload ), answered );
 		} );
 		box.appendChild( b );
 		return box;
@@ -273,15 +344,24 @@
 		serial = s;
 		send( { action: 'rewloy_wc_till_lookup', card: s }, function ( data ) {
 			showCard( data.ok ? data.card : null );
-			say( data.ok ? '' : data.message, data.ok ? '' : 'error' );
+			if ( pending ) {
+				say( t.pendingNote, 'error', retryPending );
+			} else {
+				say( data.ok ? '' : data.message, data.ok ? '' : 'error' );
+			}
 			input.select();
 		} );
 	} );
 
 	saleForm.addEventListener( 'submit', function ( e ) {
 		e.preventDefault();
-		send( { action: 'rewloy_wc_till_sale', serial: serial, amount: amount.value, reference: reference.value, key: newKey() }, answered );
+		send( press( { action: 'rewloy_wc_till_sale', serial: serial, amount: amount.value, reference: reference.value } ), answered );
 	} );
 
+	if ( pending ) {
+		// A press from before a reload never got a clear answer: it is offered again, with its own key.
+		say( t.pendingNote, 'error', retryPending );
+		lock();
+	}
 	input.focus();
 } )();

@@ -33,8 +33,13 @@ chosen in the Rewloy panel; the till is off until it is turned on there. Needs R
 - New `Client` calls: `get_program`, `get_pass`, `get_pass_till`, `record_sale`, `pass_action`,
   `list_activity`, `analytics`. Two small scripts and a stylesheet under `assets/` (in the zip).
 - Turkish for every new string; `.pot`, `.po` and `.mo` rebuilt. README, readme.txt (privacy section
-  included) and docs/DECISIONS.md (D37–D44).
-- 377 PHPUnit tests (73 new); PHPStan level 8 and `bin/lint` clean.
+  included) and docs/DECISIONS.md (D37–D46).
+- **The security review, fixed before release:** a till press with no clear answer stays pending
+  (in the tab, across a reload) with the sale and the card's buttons locked until a clear answer; the same
+  payload reuses its key; a confirmed write whose card could not be read again is a success, never a retry
+  (D46). The till has its own capability, `rewloy_wc_till`: administrators, and shop managers only when an
+  administrator ticks "Mağaza yöneticileri de kasayı kullanabilir" in Ayarlar (off by default); filterable (D45).
+- 382 PHPUnit tests (78 new); PHPStan level 8 and `bin/lint` clean.
 
 ## 0.2.2 (4 Oct 2026)
 

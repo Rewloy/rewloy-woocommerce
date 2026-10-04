@@ -64,21 +64,21 @@ final class Ajax {
 	}
 
 	public function till_lookup(): void {
-		if ( ! $this->allowed() ) {
+		if ( ! $this->allowed( Capability::TILL ) ) {
 			return;
 		}
 		$this->send( $this->till->lookup( $this->post( 'card' ) ), 200 );
 	}
 
 	public function till_sale(): void {
-		if ( ! $this->allowed() ) {
+		if ( ! $this->allowed( Capability::TILL ) ) {
 			return;
 		}
 		$this->send( $this->till->sale( $this->post( 'serial' ), $this->post( 'amount' ), $this->post( 'reference' ), $this->post( 'key' ) ), 200 );
 	}
 
 	public function till_action(): void {
-		if ( ! $this->allowed() ) {
+		if ( ! $this->allowed( Capability::TILL ) ) {
 			return;
 		}
 		$fields = array(
@@ -89,9 +89,12 @@ final class Ajax {
 		$this->send( $this->till->action( $this->post( 'serial' ), $this->post( 'operation' ), $fields, $this->post( 'key' ) ), 200 );
 	}
 
-	/** Capability, then a POST, then the nonce; each refusal answered once, in JSON. */
-	private function allowed(): bool {
-		if ( ! current_user_can( Admin::CAPABILITY ) ) {
+	/**
+	 * Capability, then a POST, then the nonce; each refusal answered once, in JSON. The till's actions need the till's
+	 * own capability as well (D45).
+	 */
+	private function allowed( string $also = '' ): bool {
+		if ( ! current_user_can( Admin::CAPABILITY ) || ( '' !== $also && ! current_user_can( $also ) ) ) {
 			$this->send( array( 'ok' => false, 'message' => __( 'You are not allowed to do this.', 'rewloy-for-woocommerce' ) ), 403 );
 			return false;
 		}

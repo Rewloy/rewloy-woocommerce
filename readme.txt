@@ -83,6 +83,12 @@ With the till on, anyone who can manage WooCommerce on your site could use custo
 = Does the plugin show my customers' details? =
 No. Rewloy sends this plugin's key no customer's name, e-mail or phone, and no teammate's e-mail. A card shows by its last four characters, except on the till right after it is read. "Open the customer in Rewloy" opens the Rewloy panel, where you sign in as usual.
 
+= Who may use the till? =
+Administrators. The till spends customers' rewards and balances, so shop managers may use it only when an administrator ticks "Shop managers may use the till too" under Rewloy › Settings. The capability is `rewloy_wc_till`; a role editor can give it to any role, and the `rewloy_wc_till` filter can decide it for a user.
+
+= What if the till gets no answer from Rewloy? =
+The press stays pending: the sale and the card's buttons are locked, and "Try again" sends that same press with the same key, so Rewloy never writes it twice, even after a page reload.
+
 = Which scanners work on the till? =
 Any USB or Bluetooth scanner that types what it reads and ends with Enter. The card's QR code is a link to the card; the till keeps only the card number from it and drops the rest, the card's private key included. If the scanner and the computer use different keyboard layouts, the till still finds the number in what was typed.
 
@@ -124,7 +130,8 @@ Türkçe özet: Eklenti yalnız Rewloy'a veri gönderir (bağlanırken bağlant�
 * What the plugin may do is Rewloy's to say (`GET /v1/me`): "Görüntüleme" and the till are chosen in the Rewloy panel and change there at once. The till is off unless turned on there, and works at one branch only.
 * Exact links to the Rewloy panel for everything done there: creating and designing cards, customers, campaigns, the team, branches, keys, billing.
 * No customer's personal data in WordPress; a card number shows by its last four characters except on the till. A scanned card link's private key is dropped at once.
-* Every till press carries its own key, the same on "Try again", so Rewloy never writes it twice; the receipt number goes on the card's record.
+* Every till press carries its own key; a press with no clear answer stays pending, locks the till and is sent again with the same key, so Rewloy never writes it twice; the receipt number goes on the card's record.
+* The till is for administrators by default (capability `rewloy_wc_till`); an administrator can open it to shop managers in Settings.
 * Turkish for every new string.
 
 = 0.2.2 =

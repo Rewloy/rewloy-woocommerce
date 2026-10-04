@@ -79,10 +79,7 @@ final class Till {
 		} catch ( RewloyException $e ) {
 			return self::failed( $e );
 		}
-		$out            = $this->state( $serial );
-		$out['ok']      = true;
-		$out['message'] = Messages::sale_result( $r, $this->panel->settings()->get()['currency'] );
-		return $out;
+		return $this->written( $serial, Messages::sale_result( $r, $this->panel->settings()->get()['currency'] ) );
 	}
 
 	/**
@@ -138,10 +135,30 @@ final class Till {
 		} catch ( RewloyException $e ) {
 			return self::failed( $e );
 		}
-		$out            = $this->state( $serial );
-		$out['ok']      = true;
-		$out['message'] = Messages::action_result( $action, true === ( $r['duplicate'] ?? false ) );
-		return $out;
+		return $this->written( $serial, Messages::action_result( $action, true === ( $r['duplicate'] ?? false ) ) );
+	}
+
+	/**
+	 * The answer to a write Rewloy confirmed: what was written, and the card as it is now. If only that last read
+	 * fails, the write still stands: success, never a `retry` (a retry of a written press is what the review's M1
+	 * found could be pressed as a new one), and the screen says the card's state could not be refreshed.
+	 *
+	 * @return array{ok:bool,message:string,card:?array<string,mixed>}
+	 */
+	private function written( string $serial, string $message ): array {
+		$state = $this->state( $serial );
+		if ( ! $state['ok'] ) {
+			return array(
+				'ok'      => true,
+				'message' => $message . ' ' . __( 'The card\'s latest state could not be refreshed; read the card again to see it.', 'rewloy-for-woocommerce' ),
+				'card'    => null,
+			);
+		}
+		return array(
+			'ok'      => true,
+			'message' => $message,
+			'card'    => $state['card'],
+		);
 	}
 
 	/**

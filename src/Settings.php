@@ -32,7 +32,7 @@ final class Settings {
 	public const LINKABLE_TYPES = array( 'stamp', 'points', 'vip', 'cashback' );
 
 	/**
-	 * @return array{link_id:string,via:string,webhook_id:int,program_id:string,program_name:string,program_type:string,currency:string,join_url:string,rule:string,per_amount_minor:int,step:int,invite:bool,account_tab:bool,controller_name:string,controller_email:string}
+	 * @return array{link_id:string,via:string,webhook_id:int,program_id:string,program_name:string,program_type:string,currency:string,join_url:string,rule:string,per_amount_minor:int,step:int,invite:bool,account_tab:bool,controller_name:string,controller_email:string,till_shop_managers:bool}
 	 */
 	public function defaults(): array {
 		return array(
@@ -51,13 +51,15 @@ final class Settings {
 			'account_tab'      => false,
 			'controller_name'  => '',
 			'controller_email' => '',
+			// Shop managers may use the till too (0.3.0, D45); an administrator's choice, off by default.
+			'till_shop_managers' => false,
 		);
 	}
 
 	/**
 	 * The saved settings over their defaults, each value of its own type.
 	 *
-	 * @return array{link_id:string,via:string,webhook_id:int,program_id:string,program_name:string,program_type:string,currency:string,join_url:string,rule:string,per_amount_minor:int,step:int,invite:bool,account_tab:bool,controller_name:string,controller_email:string}
+	 * @return array{link_id:string,via:string,webhook_id:int,program_id:string,program_name:string,program_type:string,currency:string,join_url:string,rule:string,per_amount_minor:int,step:int,invite:bool,account_tab:bool,controller_name:string,controller_email:string,till_shop_managers:bool}
 	 */
 	public function get(): array {
 		$saved = get_option( self::OPTION, array() );
@@ -79,6 +81,7 @@ final class Settings {
 			'account_tab'      => ! empty( $saved['account_tab'] ),
 			'controller_name'  => is_string( $saved['controller_name'] ?? null ) ? $saved['controller_name'] : $d['controller_name'],
 			'controller_email' => is_string( $saved['controller_email'] ?? null ) ? $saved['controller_email'] : $d['controller_email'],
+			'till_shop_managers' => ! empty( $saved['till_shop_managers'] ),
 		);
 	}
 
@@ -212,7 +215,7 @@ final class Settings {
 	 * The two choices and the controller's name, from a posted form.
 	 *
 	 * @param array<string,mixed> $raw Unslashed form data.
-	 * @return array{invite:bool,account_tab:bool,controller_name:string,controller_email:string}
+	 * @return array{invite:bool,account_tab:bool,controller_name:string,controller_email:string,till_shop_managers:bool}
 	 */
 	public function sanitize_options( array $raw ): array {
 		$name  = isset( $raw['controller_name'] ) && is_string( $raw['controller_name'] ) ? sanitize_text_field( $raw['controller_name'] ) : '';
@@ -222,6 +225,7 @@ final class Settings {
 			'account_tab'      => ! empty( $raw['account_tab'] ),
 			'controller_name'  => function_exists( 'mb_substr' ) ? mb_substr( $name, 0, 120 ) : substr( $name, 0, 120 ),
 			'controller_email' => is_email( $email ) ? substr( $email, 0, 254 ) : '',
+			'till_shop_managers' => ! empty( $raw['till_shop_managers'] ),
 		);
 	}
 

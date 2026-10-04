@@ -576,8 +576,8 @@ platform's rule since ADR 177's review (keys 8–64 characters, unique for good 
 browser makes a random UUID per press (`crypto.randomUUID`, or `getRandomValues` where that is
 missing), the server accepts only a version 4 UUID and passes it on, and the receipt number goes in
 `reference`, never in the key. The client retries a keyed POST itself (two retries) with the same key
-and body; if no clear answer comes even then, the screen offers "Tekrar dene", which sends the same
-press with the same key; a new press is a new key. Rewloy's answers are said in the panel's words,
+and body; if no clear answer comes even then, the press stays pending and locks the till until one
+comes (D46, after the review); a new press with another payload is a new key. Rewloy's answers are said in the panel's words,
 `IDEMPOTENCY_KEY_REUSED` and `LOCATION_NOT_FOUND` (an archived till branch) included
 (`Messages::for_till_error`).
 
@@ -596,6 +596,27 @@ rewards, customers, campaigns, analytics, the team, branches, keys and webhooks,
 plugin's own abilities each have one line on Özet with the exact page (`Links`, from Rewloy's API.md
 "Panelin adresleri"). The panel lives on the API's origin, so `REWLOY_API_URL` moves the links with it.
 A programme's page is also its design (the panel's builder has no address per tab: said, not invented).
+
+**D45. The till has its own capability, `rewloy_wc_till` (the security review, L4).** The till spends
+customers' rewards and balances; `manage_woocommerce` is held by every shop manager. So the Kasa tab, its
+script and its three admin-ajax actions also ask `rewloy_wc_till`, which `Capability` adds through
+`user_has_cap`: to administrators (`manage_options`), and to shop managers only when an administrator ticks
+"Mağaza yöneticileri de kasayı kullanabilir" under Ayarlar (`till_shop_managers`, default off; a non-administrator's
+save keeps what was saved, and the box shows disabled to them). A role editor can give the capability to any role,
+and the `rewloy_wc_till` filter (`$can, $user`) decides it for a user. Watching (Kartlar, Özet) stays at
+`manage_woocommerce`. The owner's rule: every choice has a default and is editable in the WordPress Ayarlar.
+
+**D46. A press with no clear answer stays pending until one comes (the security review, M1).** D42 kept the
+key only on "Tekrar dene"; pressing "Satışı yaz" or a card button again made a new UUID, so a sale or a spend whose
+first answer was lost could be written twice. And `Till::sale()`/`action()` answered `ok: true` with `retry: true`
+when the write had succeeded but the card could not be read again, which showed a success in red with "Tekrar
+dene". Now: once Rewloy confirms a write, the answer is a success and never a retry; if only the refresh failed it
+says so ("kartın son durumu yenilenemedi") and shows no card. In the browser, a write with no clear answer (no
+answer at all, or `retry`) becomes PENDING, kept in the tab's `sessionStorage` so a reload keeps it: the sale form
+and the card's buttons are locked, "Tekrar dene" sends that press with its own key, and a press whose payload is
+the same (without the key) reuses the pending key; a different write is refused until the pending one has a clear
+answer. Only a clear answer (written, or refused by Rewloy) unlocks. Reading a card stays possible meanwhile.
+Checked in Chromium with the real markup and a mocked admin-ajax: two lost answers, a reload, and one key for all.
 
 **What the platform could still add** (for the next brief): `listShopOrders` filterable by
 `orderId` (or an `order` in `getPass`), so the plugin could check an `unknown` order against
