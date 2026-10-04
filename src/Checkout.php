@@ -78,8 +78,9 @@ final class Checkout {
 		if ( ! $order instanceof \WC_Order || ! $this->issuer->is_active() ) {
 			return;
 		}
-		// phpcs:ignore WordPress.Security.NonceVerification.Missing -- WooCommerce verifies the checkout nonce before this runs.
-		$posted = isset( $_POST[ self::FIELD ] ) ? sanitize_text_field( wp_unslash( (string) $_POST[ self::FIELD ] ) ) : '';
+		// WooCommerce verifies the checkout nonce before this runs.
+		$raw    = $_POST[ self::FIELD ] ?? ''; // phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- checked and sanitised below.
+		$posted = is_string( $raw ) ? sanitize_text_field( wp_unslash( $raw ) ) : '';
 		if ( '1' === $posted ) {
 			$order->update_meta_data( Issuer::META_INVITE, 'yes' );
 		}

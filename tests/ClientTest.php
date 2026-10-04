@@ -56,18 +56,38 @@ final class ClientTest extends TestCase {
 	}
 
 	public function test_a_get_is_retried_on_a_gateway_error_then_succeeds(): void {
-		$this->script( $this->failure( 503, 'INTERNAL' ), $this->failure( 502, 'INTERNAL' ), $this->answer( 200, array( 'data' => array( 'id' => self::LINK ) ) ) );
+		$this->script( $this->failure( 503, 'INTERNAL' ), $this->answer( 200, array( 'data' => array( 'id' => self::LINK ) ) ) );
 		$this->assertSame( self::LINK, $this->client()->get_shop( self::LINK )['id'] );
-		$this->assertCount( 3, $this->requests );
+		$this->assertCount( 2, $this->requests );
 	}
 
-	public function test_a_get_gives_up_after_two_retries(): void {
-		$this->script( $this->failure( 503, 'X' ), $this->failure( 503, 'X' ), $this->failure( 503, 'X' ) );
-		$this->expectException( ApiError::class );
+	public function test_a_get_gives_up_after_its_one_retry(): void {
+		$this->script( $this->failure( 503, 'X' ), $this->failure( 502, 'X' ), $this->answer( 200, array( 'data' => array() ) ) );
 		try {
 			$this->client()->get_shop( self::LINK );
-		} finally {
-			$this->assertCount( 3, $this->requests );
+			$this->fail( 'expected an error' );
+		} catch ( ApiError $e ) {
+			$this->assertSame( 502, $e->status );
+			$this->assertCount( 2, $this->requests, 'an admin screen waits for these calls: one retry, not more' );
+		}
+	}
+
+	public function test_requests_cap_the_size_of_what_they_read(): void {
+		$this->script( $this->answer( 200, array( 'data' => array() ) ) );
+		$this->client()->list_programs();
+		$this->assertSame( 1_048_576, $this->requests[0]['args']['limit_response_size'] );
+		$this->assertSame( 10.0, $this->requests[0]['args']['timeout'] );
+	}
+
+	public function test_a_card_serial_the_api_sends_must_be_plain(): void {
+		foreach ( array( '<script>', 'AB', 'ABCD EFGH', '' ) as $serial ) {
+			$this->script( $this->answer( 201, array( 'data' => array( 'serial' => $serial, 'cardUrl' => 'https://rewloy.com/p/x' ) ) ) );
+			try {
+				$this->client()->issue_pass( array(), 'woo-0123456789-5' );
+				$this->fail( 'expected an error for ' . $serial );
+			} catch ( ConnectionError $e ) {
+				$this->assertTrue( $e->outcome_unknown(), 'accepted, so possibly issued' );
+			}
 		}
 	}
 

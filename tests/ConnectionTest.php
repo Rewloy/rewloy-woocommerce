@@ -191,6 +191,8 @@ final class ConnectionTest extends TestCase {
 			'http://app.rewloy.com/hooks/store/' . self::LINK,
 			'https://app.rewloy.com/hooks/store/other-id',
 			'https://app.rewloy.com/hooks/store/' . self::LINK . '?x=1',
+			'https://app.rewloy.com:8443/hooks/store/' . self::LINK,
+			'https://user:pw@app.rewloy.com/hooks/store/' . self::LINK,
 			'https://user@app.rewloy.com/hooks/store/' . self::LINK,
 			'',
 		) as $url ) {
@@ -204,6 +206,30 @@ final class ConnectionTest extends TestCase {
 			$this->assertSame( 'DELETE', $this->requests[2]['args']['method'] );
 			$this->assertFalse( $settings->is_connected() );
 		}
+	}
+
+	public function test_a_second_connect_at_the_same_moment_is_turned_away_without_any_call(): void {
+		$this->options['rewloy_wc_claim_connecting'] = (string) time();
+		$r = $this->connection()->connect( array( 'program_id' => self::PROGRAM, 'rule' => 'order', 'step' => '1' ) );
+		$this->assertFalse( $r->ok );
+		$this->assertStringContainsString( 'already being made', $r->message );
+		$this->assertSame( array(), $this->requests );
+	}
+
+	public function test_the_connect_lock_is_let_go_after_a_connect_and_after_a_failed_one(): void {
+		$this->script( $this->programs(), $this->failure( 409, 'LIMIT' ) );
+		$this->connection()->connect( array( 'program_id' => self::PROGRAM, 'rule' => 'order', 'step' => '1' ) );
+		$this->assertArrayNotHasKey( 'rewloy_wc_claim_connecting', $this->options );
+		$this->script( $this->programs(), $this->shopAnswer() );
+		$this->assertTrue( $this->connection()->connect( array( 'program_id' => self::PROGRAM, 'rule' => 'order', 'step' => '1' ) )->ok );
+		$this->assertArrayNotHasKey( 'rewloy_wc_claim_connecting', $this->options );
+		$this->assertCount( 1, \WC_Webhook::$db, 'one link, one webhook' );
+	}
+
+	public function test_a_connect_lock_left_by_a_dead_process_is_taken_over_after_two_minutes(): void {
+		$this->options['rewloy_wc_claim_connecting'] = (string) ( time() - 600 );
+		$this->script( $this->programs(), $this->shopAnswer() );
+		$this->assertTrue( $this->connection()->connect( array( 'program_id' => self::PROGRAM, 'rule' => 'order', 'step' => '1' ) )->ok );
 	}
 
 	public function test_connect_when_already_connected_does_nothing(): void {
@@ -226,9 +252,7 @@ final class ConnectionTest extends TestCase {
 
 	public function test_disconnect_deletes_the_link_and_the_webhook_and_forgets_the_connection(): void {
 		$settings = $this->connected();
-		$hook     = new \WC_Webhook();
-		$hook->id = 41;
-		$hook->save();
+		$hook     = $this->makeWebhook();
 		$this->script( $this->answer( 204 ) );
 		$r = $this->connection( $settings )->disconnect();
 		$this->assertTrue( $r->ok, $r->message );
@@ -247,9 +271,7 @@ final class ConnectionTest extends TestCase {
 
 	public function test_disconnect_keeps_everything_when_rewloy_refuses(): void {
 		$settings = $this->connected();
-		$hook     = new \WC_Webhook();
-		$hook->id = 41;
-		$hook->save();
+		$hook     = $this->makeWebhook();
 		$this->script( $this->failure( 403, 'FORBIDDEN' ) );
 		$r = $this->connection( $settings )->disconnect();
 		$this->assertFalse( $r->ok );
@@ -259,9 +281,7 @@ final class ConnectionTest extends TestCase {
 
 	public function test_forgetting_locally_makes_no_api_call(): void {
 		$settings = $this->connected();
-		$hook     = new \WC_Webhook();
-		$hook->id = 41;
-		$hook->save();
+		$hook     = $this->makeWebhook();
 		$r = $this->connection( $settings )->disconnect( true );
 		$this->assertTrue( $r->ok );
 		$this->assertSame( array(), $this->requests );
@@ -283,11 +303,7 @@ final class ConnectionTest extends TestCase {
 
 	public function test_health_reads_the_link_and_the_last_orders_and_the_webhook(): void {
 		$settings = $this->connected();
-		$hook     = new \WC_Webhook();
-		$hook->id = 41;
-		$hook->set_status( 'disabled' );
-		$hook->set_failure_count( 5 );
-		$hook->save();
+		$this->makeWebhook( 41, null, 'disabled', 5 );
 		$this->script(
 			$this->answer( 200, array( 'data' => array( 'id' => self::LINK, 'enabled' => true, 'lastOrderAt' => '2026-10-03T10:00:00Z', 'orders' => array( 'credited' => 3 ) ) ) ),
 			$this->answer( 200, array( 'data' => array( array( 'orderId' => '12', 'outcome' => 'unmatched', 'at' => '2026-10-03T10:00:00Z' ) ) ) )

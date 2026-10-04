@@ -68,7 +68,7 @@ final class Plugin {
 	 * @return callable(string=): ?Client
 	 */
 	public static function client_factory( Settings $settings ): callable {
-		return static function ( string $key = '' ) use ( $settings ): ?Client {
+		return static function ( #[\SensitiveParameter] string $key = '' ) use ( $settings ): ?Client {
 			$key = '' !== $key ? $key : $settings->api_key();
 			if ( '' === $key ) {
 				return null;

@@ -108,6 +108,7 @@ abstract class TestCase extends PhpUnitTestCase {
 		Functions\when( 'wp_unslash' )->alias( fn( $v ) => is_string( $v ) ? stripslashes( $v ) : $v );
 		Functions\when( 'number_format_i18n' )->alias( fn( $n, $d = 0 ) => number_format( (float) $n, (int) $d, ',', '.' ) );
 		Functions\when( 'get_bloginfo' )->justReturn( 'Örnek Mağaza' );
+		Functions\when( 'wp_hash' )->alias( fn( $s ) => md5( 'salt' . $s ) );
 		Functions\when( 'wp_specialchars_decode' )->alias( fn( $s ) => (string) $s );
 		Functions\when( 'get_current_user_id' )->justReturn( 7 );
 		Functions\when( 'current_user_can' )->alias( fn( string $cap ) => $this->can );
@@ -183,6 +184,17 @@ abstract class TestCase extends PhpUnitTestCase {
 	protected function factory( ?Client $client = null ): callable {
 		$client ??= $this->client();
 		return static fn( string $key = '' ) => $client;
+	}
+
+	/** A WooCommerce webhook as the plugin makes it: its delivery address names the link. */
+	protected function makeWebhook( int $id = 41, ?string $url = null, string $status = 'active', int $failures = 0 ): \WC_Webhook {
+		$hook     = new \WC_Webhook();
+		$hook->id = $id;
+		$hook->set_delivery_url( $url ?? 'https://app.rewloy.com/hooks/store/' . self::LINK );
+		$hook->set_status( $status );
+		$hook->set_failure_count( $failures );
+		$hook->save();
+		return $hook;
 	}
 
 	/** The saved settings, as if connected to a stamp card. */

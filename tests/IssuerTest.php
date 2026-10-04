@@ -57,7 +57,9 @@ final class IssuerTest extends TestCase {
 		$this->assertCount( 1, $order->notes );
 		$this->assertStringContainsString( 'ABCD-EFGH-JKLM', $order->notes[0]['note'] );
 		$this->assertEmpty( $order->notes[0]['customer'], 'the note is private, not a customer note' );
-		$this->assertArrayNotHasKey( Settings::CLAIM_PREFIX . '55', $this->options, 'the claim is dropped once the state is written' );
+		$this->assertArrayHasKey( Settings::CLAIM_PREFIX . '55', $this->options, 'a card was opened: the claim is kept for good' );
+		$this->assertCount( 2, preg_grep( '/^rewloy_wc_claim_/', array_keys( $this->options ) ), 'the order and its e-mail address' );
+		$this->assertArrayNotHasKey( Issuer::META_CODE, $order->meta, 'the SENDING marker is gone' );
 	}
 
 	public function test_the_private_card_link_goes_to_the_customer_and_nowhere_else(): void {
@@ -86,7 +88,7 @@ final class IssuerTest extends TestCase {
 		$this->assertCount( 1, $this->mails );
 	}
 
-	public function test_a_run_that_overlaps_another_is_stopped_by_the_claim(): void {
+	public function test_a_run_that_overlaps_another_sends_nothing(): void {
 		$this->order();
 		$issuer = $this->issuer();
 		$inner  = null;
@@ -102,7 +104,7 @@ final class IssuerTest extends TestCase {
 		);
 		$issuer = new Issuer( $this->settings, fn( string $k = '' ) => $client );
 		$issuer->run( 55 );
-		$this->assertSame( 'claimed', $inner );
+		$this->assertSame( 'done', $inner, 'the first run wrote "unknown" before its request, so the second sees a settled order' );
 		$this->assertCount( 1, $this->requests );
 	}
 
@@ -111,6 +113,17 @@ final class IssuerTest extends TestCase {
 		$this->wpdb->failInserts = true;
 		$this->assertSame( 'claimed', $this->issuer()->run( 55 ) );
 		$this->assertSame( array(), $this->requests );
+	}
+
+	public function test_a_lock_with_a_ttl_is_taken_over_only_when_it_is_old(): void {
+		$lock = new \Rewloy\WooCommerce\Lock();
+		$this->assertTrue( $lock->acquire( 'rewloy_wc_claim_t', 120 ) );
+		$this->assertFalse( $lock->acquire( 'rewloy_wc_claim_t', 120 ), 'fresh: turned away' );
+		$this->options['rewloy_wc_claim_t'] = (string) ( time() - 300 );
+		$this->assertTrue( $lock->acquire( 'rewloy_wc_claim_t', 120 ), 'old: taken over' );
+		$this->assertFalse( $lock->acquire( 'rewloy_wc_claim_t', 120 ), 'and fresh again' );
+		$this->options['rewloy_wc_claim_t'] = (string) ( time() - 300 );
+		$this->assertFalse( $lock->acquire( 'rewloy_wc_claim_t' ), 'a lock without a ttl is never taken over' );
 	}
 
 	public function test_the_claim_is_an_insert_ignore_so_only_one_process_can_win_it(): void {
@@ -253,14 +266,32 @@ final class IssuerTest extends TestCase {
 		$this->assertSame( array(), $this->mails );
 	}
 
-	public function test_on_paid_queues_the_order_once_and_not_twice(): void {
+	public function test_on_paid_queues_a_ticked_paid_order_and_writes_nothing_to_it(): void {
 		$order = $this->order();
 		Functions\expect( 'as_enqueue_async_action' )->once()->with( Issuer::HOOK, array( 55 ), Issuer::GROUP, true );
-		$issuer = $this->issuer();
-		$issuer->on_paid( 55, $order );
-		$this->assertSame( Issuer::STATE_QUEUED, $order->get_meta( Issuer::META_STATE ) );
-		$issuer->on_paid( 55, $order ); // processing, then completed.
+		$saves = $order->saves;
+		$this->issuer()->on_paid( 55, $order );
+		$this->assertSame( '', $order->get_meta( Issuer::META_STATE ), 'no state is written: a stale order object cannot overwrite a later one' );
+		$this->assertSame( $saves, $order->saves );
 		$this->assertSame( array(), $this->requests, 'queuing makes no API call' );
+	}
+
+	public function test_on_paid_reads_the_order_afresh_not_the_object_it_was_given(): void {
+		$stale = new \WC_Order( 77, 'processing', 'x@y.co' ); // Ticked in the "database"? No: this one is not.
+		$real  = $this->order( 55 );
+		Functions\expect( 'as_enqueue_async_action' )->once();
+		$this->issuer()->on_paid( 55, $stale ); // The id decides; the object WooCommerce passed is not trusted.
+		$this->assertSame( $real, \WC_Order::$db[55] );
+	}
+
+	public function test_on_paid_does_nothing_for_an_order_already_settled(): void {
+		foreach ( array( Issuer::STATE_ISSUED, Issuer::STATE_UNKNOWN, Issuer::STATE_FAILED, Issuer::STATE_EXISTS ) as $state ) {
+			$order = $this->order();
+			$order->update_meta_data( Issuer::META_STATE, $state );
+			Functions\expect( 'as_enqueue_async_action' )->never();
+			$this->issuer()->on_paid( 55, $order );
+		}
+		$this->addToAssertionCount( 1 );
 	}
 
 	public function test_on_paid_ignores_an_unticked_order_and_an_invitation_that_is_off(): void {
@@ -306,12 +337,14 @@ final class IssuerTest extends TestCase {
 
 		$theorder = $this->order( 55 );
 		$this->assertSame( array(), $issuer->order_actions( array() ) );
-		foreach ( array( Issuer::STATE_QUEUED, Issuer::STATE_ISSUED, Issuer::STATE_UNKNOWN, Issuer::STATE_EXISTS ) as $state ) {
+		foreach ( array( Issuer::STATE_ISSUED, Issuer::STATE_UNKNOWN, Issuer::STATE_EXISTS ) as $state ) {
 			$theorder->update_meta_data( Issuer::META_STATE, $state );
 			$this->assertSame( array(), $issuer->order_actions( array() ), $state );
 		}
 		$theorder->update_meta_data( Issuer::META_STATE, Issuer::STATE_FAILED );
 		$this->assertArrayHasKey( 'rewloy_retry_card', $issuer->order_actions( array() ) );
+		$this->can = false;
+		$this->assertSame( array(), $issuer->order_actions( array() ), 'it needs manage_woocommerce, like every other action' );
 	}
 
 	public function test_retry_runs_again_after_a_refusal_but_never_after_an_unclear_answer(): void {
@@ -319,6 +352,7 @@ final class IssuerTest extends TestCase {
 		$order  = $this->order( 55 );
 		$this->script( $this->failure( 422, 'EMAIL_BLOCKED' ), $this->issued() );
 		$issuer->run( 55 );
+		$this->assertArrayNotHasKey( Settings::CLAIM_PREFIX . '55', $this->options, 'a clear refusal holds nothing' );
 		$issuer->retry( $order );
 		$this->assertCount( 2, $this->requests );
 		$this->assertSame( Issuer::STATE_ISSUED, $order->get_meta( Issuer::META_STATE ) );
@@ -329,5 +363,123 @@ final class IssuerTest extends TestCase {
 		$issuer->retry( $unknown );
 		$this->assertCount( 3, $this->requests, 'an unclear answer is not retried, not even by the button' );
 		$this->assertSame( Issuer::STATE_UNKNOWN, $unknown->get_meta( Issuer::META_STATE ) );
+	}
+
+	public function test_retry_needs_manage_woocommerce(): void {
+		$issuer = $this->issuer();
+		$order  = $this->order( 55 );
+		$this->script( $this->failure( 422, 'EMAIL_BLOCKED' ), $this->issued() );
+		$issuer->run( 55 );
+		$this->can = false;
+		$issuer->retry( $order );
+		$this->assertCount( 1, $this->requests );
+		$this->assertSame( Issuer::STATE_FAILED, $order->get_meta( Issuer::META_STATE ) );
+	}
+
+	public function test_a_stale_retry_cannot_open_a_second_card(): void {
+		$issuer = $this->issuer();
+		$order  = $this->order( 55 );
+		$this->script( $this->issued() );
+		$this->assertSame( Issuer::STATE_ISSUED, $issuer->run( 55 ) );
+		// A slow page that loaded the order while it was "failed" writes that state back, then the button is pressed.
+		$order->update_meta_data( Issuer::META_STATE, Issuer::STATE_FAILED );
+		$this->script( $this->issued() );
+		$issuer->retry( $order );
+		$this->assertCount( 1, $this->requests, 'the claim kept after the first card stops a second request' );
+		$this->assertSame( array(), array_slice( $this->mails, 1 ) );
+	}
+
+	public function test_a_run_after_the_state_was_overwritten_is_still_stopped_by_the_claim(): void {
+		$issuer = $this->issuer();
+		$order  = $this->order( 55 );
+		$this->script( $this->issued() );
+		$issuer->run( 55 );
+		$order->delete_meta_data( Issuer::META_STATE ); // Whatever erased it.
+		$this->script( $this->issued() );
+		$this->assertSame( 'claimed', $issuer->run( 55 ) );
+		$this->assertCount( 1, $this->requests );
+	}
+
+	public function test_the_state_is_unknown_before_the_request_so_a_dying_process_leaves_the_safe_state(): void {
+		$order = $this->order();
+		$seen  = null;
+		$client = new \Rewloy\WooCommerce\Client(
+			self::KEY,
+			'https://app.rewloy.com',
+			function ( string $url, array $args ) use ( $order, &$seen ) {
+				$seen = array( $order->get_meta( Issuer::META_STATE ), $order->get_meta( Issuer::META_CODE ) );
+				throw new \RuntimeException( 'the process dies here' );
+			},
+			static function ( float $s ): void {}
+		);
+		$issuer = new Issuer( $this->settings, fn( string $k = '' ) => $client );
+		$this->assertSame( Issuer::STATE_UNKNOWN, $issuer->run( 55 ) );
+		$this->assertSame( array( Issuer::STATE_UNKNOWN, 'SENDING' ), $seen );
+		$this->assertSame( Issuer::STATE_UNKNOWN, $order->get_meta( Issuer::META_STATE ), 'anything thrown leaves "unknown", final' );
+		$this->assertArrayHasKey( Settings::CLAIM_PREFIX . '55', $this->options );
+		$this->assertSame( 'done', $issuer->run( 55 ) );
+	}
+
+	public function test_a_crash_while_mailing_leaves_the_card_recorded(): void {
+		$order = $this->order();
+		$this->script( $this->issued() );
+		Functions\when( 'wp_mail' )->alias(
+			static function (): bool {
+				throw new \RuntimeException( 'an SMTP plugin blew up' );
+			}
+		);
+		$this->assertSame( Issuer::STATE_ISSUED, $this->issuer()->run( 55 ) );
+		$this->assertSame( Issuer::STATE_ISSUED, $order->get_meta( Issuer::META_STATE ) );
+		$this->assertSame( 'ABCD-EFGH-JKLM', $order->get_meta( Issuer::META_SERIAL ) );
+		$this->assertStringContainsString( 'could not be sent', $order->notes[0]['note'] );
+	}
+
+	public function test_two_orders_of_one_address_cannot_both_open_a_card(): void {
+		$this->order( 55 );
+		$this->order( 56 );
+		$issuer = $this->issuer();
+		$second = null;
+		$client = new \Rewloy\WooCommerce\Client(
+			self::KEY,
+			'https://app.rewloy.com',
+			function ( string $url, array $args ) use ( &$second, &$issuer ) {
+				$this->requests[] = array( 'url' => $url, 'args' => $args );
+				$second           = $issuer->run( 56 ); // The other order of the same address, paid at the same moment.
+				return $this->issued();
+			},
+			static function ( float $s ): void {}
+		);
+		$issuer = new Issuer( $this->settings, fn( string $k = '' ) => $client );
+		$issuer->run( 55 );
+		$this->assertSame( Issuer::STATE_EXISTS, $second );
+		$this->assertCount( 1, $this->requests );
+		$this->assertStringContainsString( '#55', \WC_Order::$db[56]->notes[0]['note'] );
+	}
+
+	public function test_the_address_claim_stops_an_order_whose_sibling_has_not_written_its_state_yet(): void {
+		$this->order( 56 );
+		$this->options[ Settings::CLAIM_PREFIX . 'email_' . substr( md5( 'salt' . 'ayse@example.com' ), 0, 32 ) ] = '1';
+		$this->assertSame( Issuer::STATE_EXISTS, $this->issuer()->run( 56 ) );
+		$this->assertSame( array(), $this->requests );
+		$this->assertStringContainsString( 'another order of this e-mail address', \WC_Order::$db[56]->notes[0]['note'] );
+	}
+
+	public function test_a_clear_refusal_lets_the_address_be_invited_from_another_order(): void {
+		$this->order( 55 );
+		$this->order( 56 );
+		$this->script( $this->failure( 422, 'EMAIL_BLOCKED' ), $this->issued() );
+		$issuer = $this->issuer();
+		$this->assertSame( Issuer::STATE_FAILED, $issuer->run( 55 ) );
+		$this->assertSame( Issuer::STATE_ISSUED, $issuer->run( 56 ) );
+	}
+
+	public function test_the_address_claim_holds_no_address_in_the_clear(): void {
+		$this->order();
+		$this->script( $this->issued() );
+		$this->issuer()->run( 55 );
+		foreach ( array_keys( $this->options ) as $name ) {
+			$this->assertStringNotContainsString( 'ayse', (string) $name );
+			$this->assertStringNotContainsString( 'example.com', (string) $name );
+		}
 	}
 }

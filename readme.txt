@@ -62,7 +62,7 @@ No. The screen shows only `rwk_` and the ten public characters Rewloy itself lis
 Nothing is added. Rewloy records the order's number and outcome ("No card", "Below the threshold", and so on) and you see it on the screen. A card is opened only by the optional checkout invitation, and only when the buyer ticked the box.
 
 = Can an order open two cards? =
-No. The card is opened at most once per order, by a lock the plugin takes before it asks Rewloy, and the request is never repeated, even after a timeout. If Rewloy's answer is unclear the order note says so and nothing is sent again. One e-mail address is invited once from this shop.
+It is built not to. Rewloy itself does not de-duplicate cards, so the plugin does: before it asks Rewloy it takes a lock on the order and another on the e-mail address (kept for good once a card may have been opened), it writes "unknown" on the order before the request, and the request is never repeated, not even after a timeout. If Rewloy's answer is unclear the order note says so and nothing is sent again. One e-mail address is invited once from this shop. A card the customer got somewhere else is not known to the plugin.
 
 = Why does the My Account tab not show my customer's card? =
 WooCommerce does not check that an account's e-mail address belongs to the person who registered it. Showing a card by e-mail would let anyone who signs up with someone else's address see that person's card. The tab sends the customer to Rewloy Cüzdan, where they prove the address with a code.
@@ -83,7 +83,7 @@ The plugin sends data to **Rewloy** (https://rewloy.com), the service this plugi
 What is sent, and when:
 
 1. **Connecting and managing** (WooCommerce › Rewloy, administrators only): your API key (as the Bearer credential of every call to `https://app.rewloy.com/v1`), the card you chose and the rule. Rewloy answers with the card list, the link's state and the last orders' number, outcome and time (no personal data).
-2. **Paid orders, by the WooCommerce webhook** this plugin creates: for every order update, the order's number, status, currency, total and **billing e-mail**, signed with a secret only your shop and Rewloy hold. Nothing else of the order (no names, addresses, phone numbers or items). Rewloy reads the e-mail only to find the buyer's existing card and the total only to calculate; it stores the order number, its outcome and the time. The privacy notice says the same: https://rewloy.com/gizlilik
+2. **Paid orders, by the WooCommerce webhook** this plugin creates: for every order update, the order's number, status, currency and total, and the **billing e-mail** once the order is processing or completed, signed with a secret only your shop and Rewloy hold. Nothing else of the order (no names, addresses, phone numbers or items). Rewloy reads the e-mail only to find the buyer's existing card and the total only to calculate; it stores the order number, its outcome and the time. The privacy notice says the same: https://rewloy.com/gizlilik
 3. **Checkout invitation, only if you turn it on and only when the buyer ticks the box:** the order's billing e-mail is sent once to Rewloy to open a card (with the statement that the privacy notice was shown). Rewloy's answer carries the card's private link; the plugin e-mails it to the buyer and does not store it.
 4. **My Account tab:** nothing is sent.
 
@@ -91,7 +91,7 @@ You, as the shop, are responsible for informing your customers that order e-mail
 
 Rewloy's terms: https://rewloy.com/kosullar
 
-Türkçe özet: Eklenti yalnız Rewloy'a veri gönderir (API anahtarı, seçilen kart ve kural; ödenmiş siparişlerin numarası, durumu, para birimi, tutarı ve fatura e-postası; davet açıksa ve alıcı kutuyu işaretlediyse fatura e-postası). Siparişin ad, adres, telefon ve ürünleri gitmez. Hesabım sekmesi hiçbir şey göndermez. İzleme yoktur. Müşterilerinizi, sipariş e-postası ve tutarının kart eşleştirmesi için Rewloy'a iletildiği konusunda aydınlatmak sizin yükümlülüğünüzdür.
+Türkçe özet: Eklenti yalnız Rewloy'a veri gönderir (API anahtarı, seçilen kart ve kural; siparişlerin numarası, durumu, para birimi ve tutarı, fatura e-postası ise yalnız sipariş işleniyor ya da tamamlandı olduğunda; davet açıksa ve alıcı kutuyu işaretlediyse fatura e-postası). Siparişin ad, adres, telefon ve ürünleri gitmez. Hesabım sekmesi hiçbir şey göndermez. İzleme yoktur. Müşterilerinizi, sipariş e-postası ve tutarının kart eşleştirmesi için Rewloy'a iletildiği konusunda aydınlatmak sizin yükümlülüğünüzdür.
 
 == Changelog ==
 

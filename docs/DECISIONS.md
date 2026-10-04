@@ -21,16 +21,26 @@ way to learn that a card exists. So the guarantee is the plugin's own (`Issuer`)
    row added with `INSERT IGNORE` (`Lock`, the way WordPress core takes its own
    upgrade lock), which affects one row for the one process that inserted it and none
    for any other. `add_option()` is not used: its `ON DUPLICATE KEY UPDATE` can report
-   success to both of two racing callers when the values differ. A process that dies
-   between the claim and the result leaves the claim behind, and the order is then never
-   invited: the safe side;
-2. the order's **state meta** (`queued`, `issued`, `failed`, `unknown`, `exists`),
-   read before the claim and again after it;
-3. the call is **never retried**, whatever the failure (see D12). When the answer
-   is unclear (no answer, a 5xx, a 2xx that is not the documented JSON) the state
-   becomes `unknown`, final: a possibly-issued card is not asked for again, and the
-   order note says to look for the customer in the Rewloy panel;
-4. **one e-mail, one card, per shop**: an address that another order of this shop
+   success to both of two racing callers when the values differ. The claim is **kept
+   for good** once a card may have been opened (`issued`, `unknown`, `exists`) and let
+   go only after a clear refusal (`failed`). That is what makes later writes to the
+   order's meta (a stale copy of the order, an erased meta, a stray save) unable to
+   open the way for a second request: the claim does not depend on the meta;
+2. a second claim on the **e-mail address** (a hash of it, never the address in an
+   option name), so two orders of one address paid at the same moment cannot both pass
+   the "already invited?" check;
+3. the order's **state meta** (`issued`, `failed`, `unknown`, `exists`; no "queued":
+   `on_paid` writes nothing to the order, it only reads it afresh and enqueues, and
+   whatever is enqueued twice is stopped by the claim). `unknown` (code `SENDING`) is
+   written **before** the request, so a process that dies mid-way (a fatal, a time
+   limit) leaves the safe state; the result then overwrites it. The card is recorded
+   (`issued` and its serial) **before** the mail is sent, and the mail runs in a
+   `try/catch`, so nothing after the call can lose the record;
+4. the call is **never retried**, whatever the failure (see D12). When the answer is
+   unclear (no answer, a 5xx, a 2xx that is not the documented JSON, anything thrown)
+   the state stays `unknown`, final: a possibly-issued card is not asked for again, and
+   the order note says to look for the customer in the Rewloy panel;
+5. **one e-mail, one card, per shop**: an address that another order of this shop
    already invited (`issued` or `unknown`) is not invited again (`exists`, with a
    note naming that order). Only this plugin's own invitations are known to it:
    a card the customer got elsewhere is invisible to it, because the API cannot say.
@@ -40,8 +50,10 @@ API's 64 characters) is sent anyway: it is what the brief and the API's conventi
 ask, it costs nothing, and it starts to protect the moment the platform honours it.
 
 A *clear refusal* (a 4xx: Rewloy said no, nothing was opened) is `failed`, final
-too, but the order screen offers "Rewloy: try opening the card again", which clears
-the state and runs once more. It is offered for `failed` only, never for `unknown`.
+too, but its claims are let go, and the order screen offers "Rewloy: try opening the
+card again", which reads the order afresh, clears the state and runs once more. It is
+offered for `failed` only, never for `unknown`, and only to `manage_woocommerce` (the
+order screen itself needs less, so the action checks it).
 
 **D2. The API key's permissions.** The calls need `programs.read` (the card list),
 `settings.read` (the link and its orders), `apikeys.manage` (create, pause, delete
@@ -73,9 +85,11 @@ API accepts them. Data minimisation: the card works with an e-mail.
 
 **D6. The webhook body is cut down.** WooCommerce's `order.updated` payload carries
 names, addresses, phone numbers and line items. `handleOrder` reads only `id`,
-`status`, `currency`, `total` and `billing.email`. The plugin hooks
-`woocommerce_webhook_payload` and, for its own webhook only (matched by id), sends
-exactly those fields (plus `number`). The signature is computed over what is sent.
+`status`, `currency`, `total` and `billing.email`, and it returns on an unpaid order
+before it reads the e-mail. The plugin hooks `woocommerce_webhook_payload` and, for its
+own webhook only (matched by id), sends exactly those fields (plus `number`), with the
+billing e-mail **blank unless the status is `processing` or `completed`**. The
+signature is computed over what is sent.
 This is more than the brief asked for and it makes the privacy section true: "nothing
 else of the order". It depends on that filter's signature (`$payload, $resource,
 $resource_id, $webhook_id`); see "Not verified on real WordPress" below.
@@ -87,7 +101,7 @@ WooCommerce › Settings.** The screen has independent actions (save the key, co
 pause, disconnect, forget, reactivate, save options), each with its own nonce and its
 own result. A WooCommerce settings tab is one form with one Save button and would
 force them into one submit. Capability `manage_woocommerce`; a "Settings" link sits on
-the plugin row.
+the plugin row. Every action is a POST: a nonce in a link (a GET) never runs one.
 
 **D8. Name, slug, text domain**: `rewloy-for-woocommerce`, as the brief says.
 Namespace `Rewloy\WooCommerce`, a tiny PSR-4 loader (`src/autoload.php`); no Composer
@@ -117,21 +131,29 @@ address and secret: topic `order.updated`, API version `wp_api_v3`, status activ
 the connecting user as its user. Safeguards:
 
 - the delivery address must be `https`, on the API's own host, with the path
-  `/hooks/store/<this link's id>` (no user info, query or fragment); otherwise no
+  `/hooks/store/<this link's id>` (no user info, port, query or fragment); otherwise no
   webhook (so the secret goes nowhere) and the link is deleted again;
 - if WooCommerce cannot save the webhook the link is deleted again, since the secret
   was shown once and cannot be recreated;
 - the secret lives only inside the WooCommerce webhook, in no option of ours;
-- ids that go into API paths must be UUIDs.
+- ids that go into API paths must be UUIDs;
+- one connect at a time: a lock (with a two-minute takeover, so a dead process cannot
+  block it for good) stops a double click from making two links and two webhooks, the
+  first of which would be orphaned and keep sending full orders;
+- the stored webhook id is trusted only if that webhook's delivery address names our
+  link (`Webhooks::owned`): health, reactivate and delete never touch another webhook,
+  whatever id is stored.
 
 **D12. The client's retry rules** follow rewloy-php's list: network errors, 429,
 502-504, 520-524 (and 409 `IDEMPOTENCY_IN_PROGRESS`), up to two retries with jittered
-backoff, and a `Retry-After` longer than 10 s (rewloy-php waits up to 60; this runs
-inside an admin request) is not waited for. Only requests that are safe to repeat are
+backoff, a `Retry-After` longer than 10 s not waited for (rewloy-php waits up to 60;
+this runs inside an admin request), and **one retry, not two** (a screen makes two
+reads, so two retries could hold a page for over a minute; timeout 10 s, answers read
+up to 1 MB). Only requests that are safe to repeat are
 retried: GET, PUT, DELETE and PATCH (here PATCH only sets `enabled`, so repeating it
 changes nothing more). **A POST is never retried, even with an `Idempotency-Key`**,
 unlike rewloy-php: the key does not protect `issuePass` or `createShop` on the server
-today (D1). Timeouts are 15 s; redirects are not followed, so the key can never go to
+today (D1). Redirects are not followed, so the key can never go to
 another host. HTTPS is required (plain HTTP only for localhost); a `REWLOY_API_URL`
 constant can point at a staging origin.
 
@@ -222,14 +244,25 @@ and the plugin shows a notice if WooCommerce is missing). `Tested up to` (6.8) a
   no card for that order and records it (an order counts once), so that order earns
   nothing; later orders do. The platform could close this (see the report).
 - **One card per e-mail per shop is enforced only against this plugin's own
-  invitations** (D1.4).
+  invitations** (D1.5).
+- **The invitation e-mails whatever address the buyer types**, and states that the
+  notice was shown. A third party's address can so be given one card (once per address)
+  and one e-mail from the shop. It is the same unverified-address weakness the My
+  Account tab is designed around; a double opt-in (a confirmation link before the card)
+  would close it and is not in 0.1.
+- **Subscription renewals** may copy the tick to the renewal order; the address is
+  already invited, so the guard answers `exists` and nothing more happens.
+- **A process that dies between the claim and the state** (before the request) leaves
+  the claim and no state: that order is never invited. The safe side.
+- **Action Scheduler's table names are cached per process**, so on a network the
+  uninstall may clear the scheduled actions of the main site only; the rest finish with
+  nothing to do (the invitation is off, the options are gone).
 - **A delivered order's e-mail is matched exactly as WooCommerce gives it**; nothing
   here normalises it.
 - **A refunded or cancelled order** after a card was opened does not close the card;
   that is the business's call.
-- **`queued` is not retried**: if Action Scheduler never runs the action, the card is
-  not opened and the order shows no note. WooCommerce's own scheduled actions would
-  be stuck too.
+- **If Action Scheduler never runs the action**, the card is not opened and the order
+  shows no note. WooCommerce's own scheduled actions would be stuck too.
 
 ## Not verified on real WordPress
 

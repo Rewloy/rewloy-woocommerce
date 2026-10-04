@@ -131,6 +131,26 @@ final class SettingsTest extends TestCase {
 		$this->assertFalse( $settings->is_rewloy_url( 'https://evilrewloy.com/join/x' ) );
 		$this->assertFalse( $settings->is_rewloy_url( 'https://user@rewloy.com/x' ) );
 		$this->assertFalse( $settings->is_rewloy_url( 'javascript:alert(1)' ) );
+		$this->assertTrue( $settings->is_rewloy_url( 'https://REWLOY.com/cuzdan/' ) );
+	}
+
+	public function test_a_url_that_browsers_and_php_read_differently_is_refused(): void {
+		$settings = new Settings();
+		// Browsers read a backslash as a slash: this goes to evil.com, while PHP's parser says the host ends in .rewloy.com.
+		$this->assertFalse( $settings->is_rewloy_url( 'https://evil.com\\.rewloy.com/x' ) );
+		$this->assertFalse( $settings->is_rewloy_url( "https://rewloy.com/x\n" ) );
+		$this->assertFalse( $settings->is_rewloy_url( 'https://rewloy.com/a b' ) );
+		$this->assertFalse( $settings->is_rewloy_url( 'https://rewloy.com:8443/x' ) );
+		$this->assertFalse( $settings->is_rewloy_url( 'https://user:pw@rewloy.com/x' ) );
+		$this->assertFalse( $settings->is_rewloy_url( 'https://-.rewloy.com.evil.test/x' ) );
+		$this->assertFalse( $settings->is_rewloy_url( 'https:///rewloy.com/x' ) );
+	}
+
+	public function test_a_short_key_shows_no_prefix_at_all(): void {
+		$settings = new Settings();
+		$this->assertSame( 'rwk_••••••••', $settings->mask( 'rwk_abcdefghijk' ), '15 characters: 14 would be almost all of it' );
+		$this->assertSame( 'rwk_••••••••', $settings->mask( 'rwk_' . str_repeat( 'a', 20 ) ) );
+		$this->assertSame( 'rwk_aaaaaaaaaa••••••••', $settings->mask( 'rwk_' . str_repeat( 'a', 28 ) ) );
 	}
 
 	public function test_clear_connection_keeps_the_choices(): void {

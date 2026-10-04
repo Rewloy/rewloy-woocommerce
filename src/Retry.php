@@ -15,8 +15,11 @@ defined( 'ABSPATH' ) || exit;
 
 final class Retry {
 
-	/** Retries after the first attempt, for a request that is safe to repeat. */
-	public const MAX_RETRIES = 2;
+	/**
+	 * Retries after the first attempt, for a request that is safe to repeat. One, not rewloy-php's two:
+	 * an admin screen waits for these calls, and two reads on a page already make four attempts.
+	 */
+	public const MAX_RETRIES = 1;
 	/** The first wait's ceiling, in seconds; it doubles with each attempt. */
 	public const BASE = 0.5;
 	/** The longest backoff, in seconds. */

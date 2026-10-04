@@ -22,6 +22,7 @@ final class AdminTest extends TestCase {
 
 	protected function setUp(): void {
 		parent::setUp();
+		$_SERVER['REQUEST_METHOD'] = 'POST';
 		$this->redirects   = array();
 		$this->nonceChecks = array();
 		$this->nonceOk     = true;
@@ -57,6 +58,7 @@ final class AdminTest extends TestCase {
 	}
 
 	protected function tearDown(): void {
+		unset( $_SERVER['REQUEST_METHOD'] );
 		$_POST = array();
 		parent::tearDown();
 	}
@@ -123,6 +125,22 @@ final class AdminTest extends TestCase {
 		$this->assertSame( array( 'rewloy_wc_' . $action ), $this->nonceChecks, 'its own nonce action' );
 		$this->assertSame( array(), $this->requests );
 		$this->assertSame( $before, $this->options, 'nothing was saved' );
+	}
+
+	/** @dataProvider actions */
+	public function test_a_get_request_never_runs_an_action_even_with_a_valid_nonce( string $action ): void {
+		$_SERVER['REQUEST_METHOD'] = 'GET';
+		$settings                  = $this->connected();
+		$before                    = $this->options;
+		try {
+			$this->admin( $settings )->{'handle_' . $action}();
+			$this->fail( 'expected wp_die' );
+		} catch ( \RuntimeException $e ) {
+			$this->assertSame( 'wp_die', $e->getMessage() );
+		}
+		$this->assertSame( array(), $this->nonceChecks );
+		$this->assertSame( array(), $this->requests );
+		$this->assertSame( $before, $this->options );
 	}
 
 	public function test_the_capability_is_manage_woocommerce_and_the_screen_is_a_woocommerce_submenu(): void {
@@ -233,11 +251,7 @@ final class AdminTest extends TestCase {
 	public function test_the_connected_screen_shows_health_orders_and_outcomes_in_the_panels_words(): void {
 		$settings = $this->connected( array( 'account_tab' => true, 'controller_name' => 'Örnek A.Ş.' ) );
 		$settings->save_api_key( self::KEY );
-		$hook     = new \WC_Webhook();
-		$hook->id = 41;
-		$hook->set_status( 'disabled' );
-		$hook->set_failure_count( 5 );
-		$hook->save();
+		$this->makeWebhook( 41, null, 'disabled', 5 );
 		$this->script(
 			$this->answer( 200, array( 'data' => array( 'enabled' => true, 'lastOrderAt' => '2026-10-03T10:00:00Z', 'orders' => array( 'credited' => 3, 'unmatched' => 1, 'below' => 0, 'paused' => 2, 'currency' => 1 ) ) ) ),
 			$this->answer( 200, array( 'data' => array( array( 'orderId' => '<b>12</b>', 'outcome' => 'unmatched', 'at' => '2026-10-03T10:00:00Z' ) ) ) )
@@ -281,7 +295,8 @@ final class AdminTest extends TestCase {
 
 	public function test_the_privacy_section_names_what_is_sent(): void {
 		$html = $this->render( $this->admin() );
-		$this->assertStringContainsString( 'number, status, currency, total and billing e-mail', $html );
+		$this->assertStringContainsString( 'number, status, currency and total', $html );
+		$this->assertStringContainsString( 'billing e-mail once the order is processing or completed', $html );
 		$this->assertStringContainsString( 'no tracking', $html );
 	}
 

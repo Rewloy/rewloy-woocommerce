@@ -19,17 +19,45 @@ defined( 'ABSPATH' ) || exit;
 
 final class Lock {
 
-	/** Takes the lock; false if another process holds it (or the database refused). */
-	public function acquire( string $name ): bool {
+	/**
+	 * Takes the lock; false if another process holds it (or the database refused).
+	 *
+	 * @param string $name The lock's name (an option name).
+	 * @param int    $ttl  Seconds after which a lock left behind by a dead process may be taken over;
+	 *                     0 for never (a claim that guards a card is kept for good).
+	 */
+	public function acquire( string $name, int $ttl = 0 ): bool {
 		global $wpdb;
-		$result = $wpdb->query( // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+		if ( 1 === $this->insert( $name ) ) {
+			return true;
+		}
+		if ( $ttl > 0 ) {
+			// Only a row older than the ttl is removed (conditionally, so a fresh winner's row is never taken).
+			$wpdb->query( // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+				$wpdb->prepare(
+					"DELETE FROM `{$wpdb->options}` WHERE `option_name` = %s AND CAST(`option_value` AS UNSIGNED) < %d /* rewloy lock */",
+					$name,
+					time() - $ttl
+				)
+			);
+			return 1 === $this->insert( $name );
+		}
+		return false;
+	}
+
+	/**
+	 * @phpstan-impure It changes the database, and a second call answers differently.
+	 * @return int|false Rows inserted: 1 for the winner, 0 for everyone else, false on a database error.
+	 */
+	private function insert( string $name ) {
+		global $wpdb;
+		return $wpdb->query( // phpcs:ignore WordPress.DB.DirectDatabaseQuery
 			$wpdb->prepare(
 				"INSERT IGNORE INTO `{$wpdb->options}` (`option_name`, `option_value`, `autoload`) VALUES (%s, %s, 'no') /* rewloy lock */",
 				$name,
 				(string) time()
 			)
 		);
-		return 1 === $result;
 	}
 
 	/** Lets go. Straight to the table: the row never went through the options cache. */

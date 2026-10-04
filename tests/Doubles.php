@@ -157,6 +157,12 @@ class FakeWpdb {
 			$this->rows[ $m[1] ] = $m[2];
 			return 1;
 		}
+		if ( str_starts_with( $sql, 'DELETE FROM' ) && 1 === preg_match( "/`option_name` = '([^']*)' AND CAST\\(`option_value` AS UNSIGNED\\) < (\\d+)/", $sql, $m ) ) {
+			if ( array_key_exists( $m[1], $this->rows ) && (int) $this->rows[ $m[1] ] < (int) $m[2] ) {
+				unset( $this->rows[ $m[1] ] );
+				return 1;
+			}
+		}
 		return 0;
 	}
 

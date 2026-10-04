@@ -15,26 +15,32 @@ defined( 'ABSPATH' ) || exit;
 
 final class Connection {
 
+	/** The lock that keeps two Connect presses from each making a link and a webhook. */
+	private const CONNECT_LOCK = 'rewloy_wc_claim_connecting';
+
 	/** @var callable(string=): ?Client */
 	private $client_factory;
+	private Lock $lock;
 
 	/**
-	 * @param Settings                 $settings       The saved settings.
-	 * @param Webhooks                 $webhooks       The WooCommerce webhook.
+	 * @param Settings                   $settings       The saved settings.
+	 * @param Webhooks                   $webhooks       The WooCommerce webhook.
 	 * @param callable(string=): ?Client $client_factory A client for the saved key, or for the key given; null without a key.
+	 * @param Lock|null                  $lock           The lock for connecting.
 	 */
-	public function __construct( private Settings $settings, private Webhooks $webhooks, callable $client_factory ) {
+	public function __construct( private Settings $settings, private Webhooks $webhooks, callable $client_factory, ?Lock $lock = null ) {
 		$this->client_factory = $client_factory;
+		$this->lock           = $lock ?? new Lock();
 	}
 
-	private function client( string $key = '' ): ?Client {
+	private function client( #[\SensitiveParameter] string $key = '' ): ?Client {
 		return ( $this->client_factory )( $key );
 	}
 
 	/**
 	 * Checks a pasted key with the API (a harmless read) and saves it only if Rewloy accepts it.
 	 */
-	public function save_key( string $raw ): Result {
+	public function save_key( #[\SensitiveParameter] string $raw ): Result {
 		if ( 'constant' === $this->settings->key_source() ) {
 			return Result::error( __( 'The key is set by REWLOY_API_KEY in wp-config.php; that one is used.', 'rewloy-for-woocommerce' ) );
 		}
@@ -107,6 +113,24 @@ final class Connection {
 		if ( $this->settings->is_connected() ) {
 			return Result::error( __( 'This shop is already connected.', 'rewloy-for-woocommerce' ) );
 		}
+		// One connect at a time: a double click must not make two links and two webhooks (the first would be orphaned).
+		if ( ! $this->lock->acquire( self::CONNECT_LOCK, 120 ) ) {
+			return Result::error( __( 'A connection is already being made. Wait a moment and reload this page.', 'rewloy-for-woocommerce' ) );
+		}
+		try {
+			if ( $this->settings->is_connected() ) {
+				return Result::error( __( 'This shop is already connected.', 'rewloy-for-woocommerce' ) );
+			}
+			return $this->connect_locked( $input );
+		} finally {
+			$this->lock->release( self::CONNECT_LOCK );
+		}
+	}
+
+	/**
+	 * @param array<string,mixed> $input program_id, rule, per_amount (as typed), step.
+	 */
+	private function connect_locked( array $input ): Result {
 		$client = $this->client();
 		if ( null === $client ) {
 			return Result::error( __( 'Save the API key first.', 'rewloy-for-woocommerce' ) );
@@ -282,7 +306,7 @@ final class Connection {
 	/** Is this the address a WooCommerce shop link is delivered to: https on the API's own host, /hooks/store/<this link>? */
 	private function is_delivery_url( string $url, string $link_id, string $api_host ): bool {
 		$parts = wp_parse_url( $url );
-		if ( ! is_array( $parts ) || isset( $parts['user'] ) || isset( $parts['query'] ) || isset( $parts['fragment'] ) ) {
+		if ( ! is_array( $parts ) || isset( $parts['user'] ) || isset( $parts['pass'] ) || isset( $parts['port'] ) || isset( $parts['query'] ) || isset( $parts['fragment'] ) ) {
 			return false;
 		}
 		$scheme = $parts['scheme'] ?? '';

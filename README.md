@@ -73,7 +73,7 @@ Eklenti yalnız Rewloy'a (`https://app.rewloy.com`) veri gönderir.
 | Ne zaman | Ne gider |
 |---|---|
 | Bağlanırken ve yönetirken (yalnız `manage_woocommerce`) | API anahtarı (her çağrıda yetki başlığı olarak), seçilen kart ve kural. Yanıt: kart listesi, bağlantının durumu, son siparişlerin numarası, sonucu ve zamanı. |
-| Her sipariş güncellemesinde (WooCommerce webhook'u) | Siparişin **numarası, durumu, para birimi, tutarı ve fatura e-postası**; yalnız mağazanın ve Rewloy'un bildiği bir sırla imzalı. Ad, adres, telefon ve ürünler **gitmez**: eklenti webhook'un içeriğini bu alanlara indirir. Rewloy e-postayı yalnız mevcut kartı bulmak, tutarı yalnız hesaplamak için okur; sipariş numarasını, sonucunu ve zamanını saklar. |
+| Her sipariş güncellemesinde (WooCommerce webhook'u) | Siparişin **numarası, durumu, para birimi ve tutarı**; **fatura e-postası** yalnız sipariş *işleniyor* ya da *tamamlandı* olduğunda. Yalnız mağazanın ve Rewloy'un bildiği bir sırla imzalı. Ad, adres, telefon ve ürünler **gitmez**: eklenti webhook'un içeriğini bu alanlara indirir. Rewloy e-postayı yalnız mevcut kartı bulmak, tutarı yalnız hesaplamak için okur; sipariş numarasını, sonucunu ve zamanını saklar. |
 | Davet açıksa ve alıcı kutuyu işaretlediyse, sipariş ödenince | Fatura e-postası, bir kez, kart açmak için; yanında aydınlatma metninin sunulduğu beyanı. |
 | Hesabım sekmesi | Hiçbir şey. |
 
@@ -97,10 +97,13 @@ Ayar ekranı bunu söyler.
 - Webhook'un teslim adresi yalnız API'nin kendi sunucusunda ve
   `/hooks/store/<bağlantı>` yolunda kabul edilir; başka bir adres gelirse
   hiçbir şey bağlanmaz ve oluşan bağlantı geri alınır.
-- Kart açma (`issuePass`) sipariş başına **en fazla bir kez**: istekten önce siparişin
-  üstüne atomik bir kilit alınır, istek hiçbir koşulda yinelenmez, yanıt belirsizse
-  (zaman aşımı, 5xx) sipariş notu bunu söyler ve bir daha gönderilmez. Aynı
-  e-posta bu mağazadan bir kez davet edilir. Ayrıntı: [docs/DECISIONS.md](docs/DECISIONS.md).
+- Kart açma (`issuePass`) sipariş başına **en fazla bir kez**. Rewloy kendisi aynı
+  e-posta için ikinci kartı engellemediğinden bunu eklenti sağlar: istekten önce
+  siparişin ve e-posta adresinin üstüne atomik birer kilit alınır (kart açılmış
+  olabilirse kalıcı), sipariş "belirsiz" diye işaretlenir, istek hiçbir koşulda
+  yinelenmez; yanıt belirsizse (zaman aşımı, 5xx) sipariş notu bunu söyler ve bir
+  daha gönderilmez. Aynı e-posta bu mağazadan bir kez davet edilir. Ayrıntı:
+  [docs/DECISIONS.md](docs/DECISIONS.md).
 
 Bir güvenlik açığı bulursanız [SECURITY.md](SECURITY.md) dosyasındaki yoldan
 özel olarak bildirin. Lütfen herkese açık issue açmayın.
@@ -220,8 +223,9 @@ characters.
 
 Only to Rewloy (`https://app.rewloy.com`): the API key, the chosen card and rule when
 you connect and manage; for each order update, the webhook sends the order's number,
-status, currency, total and billing e-mail, signed with a secret (the plugin cuts the
-webhook's body down to those fields: no names, addresses, phone numbers or items); if
+status, currency and total, and the billing e-mail once the order is processing or
+completed, signed with a secret (the plugin cuts the webhook's body down to those
+fields: no names, addresses, phone numbers or items); if
 you turn the invitation on, the billing e-mail of an order whose box was ticked, once.
 The My Account tab sends nothing. Deleting the plugin removes its options and webhook
 from your site and deletes nothing in Rewloy. As the shop you must inform your

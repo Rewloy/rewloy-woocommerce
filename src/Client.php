@@ -21,7 +21,9 @@ final class Client {
 
 	public const DEFAULT_BASE_URL = 'https://app.rewloy.com';
 	/** Seconds one attempt may take. Admin screens wait for it, so it is short. */
-	public const DEFAULT_TIMEOUT = 15.0;
+	public const DEFAULT_TIMEOUT = 10.0;
+	/** The largest answer read, in bytes: every answer this plugin reads is small. */
+	public const MAX_RESPONSE = 1_048_576;
 
 	private string $base_url;
 	/** @var callable(string, array<string,mixed>): (array<string,mixed>|\WP_Error) */
@@ -132,8 +134,8 @@ final class Client {
 		$data = $this->object_of( $this->call( 'POST', '/passes', array(), $body, $idempotency_key ) );
 		$serial = $data['serial'] ?? null;
 		$url    = $data['cardUrl'] ?? null;
-		if ( ! is_string( $serial ) || ! is_string( $url ) || '' === $serial ) {
-			// A 2xx without the card: accepted, so possibly issued.
+		if ( ! is_string( $serial ) || ! is_string( $url ) || 1 !== preg_match( '/^[A-Za-z0-9-]{4,40}$/', $serial ) ) {
+			// A 2xx without a usable card: accepted, so possibly issued.
 			throw new ConnectionError( 'The answer to issuePass did not carry the card.', 200 );
 		}
 		return array(
@@ -174,6 +176,7 @@ final class Client {
 			'timeout'     => $this->timeout,
 			'redirection' => 0, // The key must never follow a redirect to another host.
 			'headers'     => $headers,
+			'limit_response_size' => self::MAX_RESPONSE,
 		);
 		if ( null !== $json ) {
 			$args['body'] = $json;

@@ -136,6 +136,11 @@ final class Admin {
 		if ( ! current_user_can( self::CAPABILITY ) ) {
 			wp_die( esc_html__( 'You are not allowed to do this.', 'rewloy-for-woocommerce' ), '', array( 'response' => 403 ) );
 		}
+		// These forms are POSTs: a nonce in a link (a GET) must not turn the connection on, off or away.
+		$method = isset( $_SERVER['REQUEST_METHOD'] ) && is_string( $_SERVER['REQUEST_METHOD'] ) ? strtoupper( $_SERVER['REQUEST_METHOD'] ) : '';
+		if ( 'POST' !== $method ) {
+			wp_die( esc_html__( 'You are not allowed to do this.', 'rewloy-for-woocommerce' ), '', array( 'response' => 405 ) );
+		}
 		check_admin_referer( 'rewloy_wc_' . $action );
 		$result = $work();
 		set_transient(
@@ -375,7 +380,7 @@ final class Admin {
 
 	private function section_privacy(): void {
 		echo '<h2>' . esc_html__( 'What goes to Rewloy', 'rewloy-for-woocommerce' ) . '</h2><ul style="list-style:disc;margin-left:1.5em">';
-		echo '<li>' . esc_html__( 'For each order update, the webhook sends the order\'s number, status, currency, total and billing e-mail, signed with a secret only this shop and Rewloy have. Nothing else of the order (no names, addresses, phone numbers or items). Rewloy stores only the order number, its outcome and the time.', 'rewloy-for-woocommerce' ) . '</li>';
+		echo '<li>' . esc_html__( 'For each order update, the webhook sends the order\'s number, status, currency and total, signed with a secret only this shop and Rewloy have, and the billing e-mail once the order is processing or completed. Nothing else of the order (no names, addresses, phone numbers or items). Rewloy stores only the order number, its outcome and the time.', 'rewloy-for-woocommerce' ) . '</li>';
 		echo '<li>' . esc_html__( 'If you turn on the invitation, the billing e-mail of an order whose box was ticked is sent once, to open the card.', 'rewloy-for-woocommerce' ) . '</li>';
 		echo '<li>' . esc_html__( 'Nothing else, and no tracking. The My Account tab sends nothing.', 'rewloy-for-woocommerce' ) . '</li>';
 		echo '</ul>';

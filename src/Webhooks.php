@@ -47,13 +47,28 @@ final class Webhooks {
 	}
 
 	/**
+	 * The webhook with this id, if it is ours: its delivery address names this shop's link
+	 * (`/hooks/store/<link id>`). An id that was reused, or edited by hand, never reaches
+	 * another webhook.
+	 */
+	private function owned( int $id ): ?\WC_Webhook {
+		$hook = $id > 0 ? wc_get_webhook( $id ) : null;
+		if ( ! $hook instanceof \WC_Webhook ) {
+			return null;
+		}
+		$link = strtolower( $this->settings->get()['link_id'] );
+		$path = wp_parse_url( (string) $hook->get_delivery_url(), PHP_URL_PATH );
+		return '' !== $link && is_string( $path ) && '/hooks/store/' . $link === strtolower( $path ) ? $hook : null;
+	}
+
+	/**
 	 * What the screen shows of the webhook.
 	 *
 	 * @return array{exists:bool,status:string,failures:int,edit_url:string}
 	 */
 	public function health( int $id ): array {
-		$hook = $id > 0 ? wc_get_webhook( $id ) : null;
-		if ( ! $hook instanceof \WC_Webhook ) {
+		$hook = $this->owned( $id );
+		if ( null === $hook ) {
 			return array(
 				'exists'   => false,
 				'status'   => '',
@@ -71,8 +86,8 @@ final class Webhooks {
 
 	/** Back to active with a clean failure count (WooCommerce disables a webhook after repeated failures). */
 	public function reactivate( int $id ): bool {
-		$hook = $id > 0 ? wc_get_webhook( $id ) : null;
-		if ( ! $hook instanceof \WC_Webhook ) {
+		$hook = $this->owned( $id );
+		if ( null === $hook ) {
 			return false;
 		}
 		$hook->set_failure_count( 0 ); // @phpstan-ignore argument.type (the stub's docblock says bool; WooCommerce stores an integer)
@@ -82,17 +97,19 @@ final class Webhooks {
 	}
 
 	public function delete( int $id ): void {
-		$hook = $id > 0 ? wc_get_webhook( $id ) : null;
-		if ( $hook instanceof \WC_Webhook ) {
+		$hook = $this->owned( $id );
+		if ( null !== $hook ) {
 			$hook->delete( true );
 		}
 	}
 
 	/**
 	 * Only for the plugin's own webhook: send Rewloy the order's number, status,
-	 * currency, total and the billing e-mail, and nothing else. WooCommerce's order
-	 * payload also holds names, addresses, phone numbers and line items; Rewloy
-	 * reads none of them. The webhook's signature is computed over what is sent.
+	 * currency and total, and the billing e-mail only once the order is paid
+	 * (processing or completed: Rewloy ignores an unpaid order without reading its
+	 * e-mail), and nothing else. WooCommerce's order payload also holds names,
+	 * addresses, phone numbers and line items; Rewloy reads none of them. The
+	 * webhook's signature is computed over what is sent.
 	 *
 	 * @param mixed $payload     The payload WooCommerce built.
 	 * @param mixed $resource    The resource ("order").
@@ -106,13 +123,14 @@ final class Webhooks {
 			return $payload;
 		}
 		$billing = is_array( $payload['billing'] ?? null ) ? $payload['billing'] : array();
+		$paid    = in_array( $payload['status'] ?? '', array( 'processing', 'completed' ), true );
 		return array(
 			'id'       => $payload['id'] ?? $resource_id,
 			'number'   => $payload['number'] ?? '',
 			'status'   => $payload['status'] ?? '',
 			'currency' => $payload['currency'] ?? '',
 			'total'    => $payload['total'] ?? '',
-			'billing'  => array( 'email' => is_string( $billing['email'] ?? null ) ? $billing['email'] : '' ),
+			'billing'  => array( 'email' => $paid && is_string( $billing['email'] ?? null ) ? $billing['email'] : '' ),
 		);
 	}
 }

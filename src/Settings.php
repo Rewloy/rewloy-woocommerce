@@ -102,6 +102,7 @@ final class Settings {
 		);
 	}
 
+	/** @phpstan-impure It reads the database, which another process may change. */
 	public function is_connected(): bool {
 		return '' !== $this->get()['link_id'];
 	}
@@ -125,7 +126,7 @@ final class Settings {
 	}
 
 	/** Saves the key in its own option, which WordPress does not load on every request. */
-	public function save_api_key( string $key ): void {
+	public function save_api_key( #[\SensitiveParameter] string $key ): void {
 		update_option( self::KEY_OPTION, $key, false );
 	}
 
@@ -137,7 +138,7 @@ final class Settings {
 	 * A key as a person typed or pasted it: trimmed, and only if it has the shape
 	 * of an API key (`rwk_` and then letters, digits, `_`, `-`). Anything else is ''.
 	 */
-	public function sanitize_api_key( string $raw ): string {
+	public function sanitize_api_key( #[\SensitiveParameter] string $raw ): string {
 		$key = trim( $raw );
 		return 1 === preg_match( '/^rwk_[A-Za-z0-9_-]{10,200}$/', $key ) ? $key : '';
 	}
@@ -147,11 +148,12 @@ final class Settings {
 	 * which Rewloy itself prints in its lists because they are not secret, then dots.
 	 * Never the rest. A key too short to have such a prefix shows only dots.
 	 */
-	public function mask( string $key ): string {
+	public function mask( #[\SensitiveParameter] string $key ): string {
 		if ( '' === $key ) {
 			return '';
 		}
-		$shown = strlen( $key ) > 14 && str_starts_with( $key, 'rwk_' ) ? substr( $key, 0, 14 ) : 'rwk_';
+		// The prefix only for a key long enough that 14 characters are a small part of it.
+		$shown = strlen( $key ) >= 32 && str_starts_with( $key, 'rwk_' ) ? substr( $key, 0, 14 ) : 'rwk_';
 		return $shown . '••••••••';
 	}
 
@@ -198,11 +200,14 @@ final class Settings {
 	 * https on rewloy.com or one of its subdomains, nothing else.
 	 */
 	public function is_rewloy_url( string $url ): bool {
-		$parts = wp_parse_url( $url );
-		if ( ! is_array( $parts ) || 'https' !== ( $parts['scheme'] ?? '' ) || isset( $parts['user'] ) || isset( $parts['port'] ) ) {
+		// Browsers read a backslash as a slash, PHP's parser does not: refuse anything that is not plain.
+		if ( 1 === preg_match( '/[\x00-\x20\x7f\\\\]/', $url ) ) {
 			return false;
 		}
-		$host = strtolower( $parts['host'] ?? '' );
-		return 'rewloy.com' === $host || str_ends_with( $host, '.rewloy.com' );
+		$parts = wp_parse_url( $url );
+		if ( ! is_array( $parts ) || 'https' !== ( $parts['scheme'] ?? '' ) || isset( $parts['user'] ) || isset( $parts['pass'] ) || isset( $parts['port'] ) ) {
+			return false;
+		}
+		return 1 === preg_match( '/^(?:[a-z0-9-]+\.)*rewloy\.com$/', strtolower( $parts['host'] ?? '' ) );
 	}
 }

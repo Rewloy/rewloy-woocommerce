@@ -76,6 +76,13 @@ final class CheckoutTest extends TestCase {
 		}
 	}
 
+	public function test_a_posted_array_is_not_a_tick_and_raises_no_warning(): void {
+		$_POST[ Checkout::FIELD ] = array( '1' );
+		$order                    = new \WC_Order( 5 );
+		$this->checkout( $this->connected() )->save_choice( $order, array() );
+		$this->assertSame( '', $order->get_meta( Issuer::META_INVITE ) );
+	}
+
 	public function test_a_tick_is_not_kept_while_the_invitation_is_off(): void {
 		$_POST[ Checkout::FIELD ] = '1';
 		$order                    = new \WC_Order( 5 );
