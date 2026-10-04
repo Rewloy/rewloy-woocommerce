@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# php -l over every PHP file of the plugin (and its tests).
+set -euo pipefail
+cd "$(dirname "$0")/.."
+status=0
+while IFS= read -r -d '' file; do
+	if ! out=$(php -l "$file" 2>&1); then
+		echo "$out"
+		status=1
+	fi
+done < <(find . -name '*.php' -not -path './vendor/*' -not -path './build/*' -not -path './node_modules/*' -print0)
+if [ "$status" -eq 0 ]; then
+	echo "php -l: every file is clean ($(find . -name '*.php' -not -path './vendor/*' -not -path './build/*' | wc -l | tr -d ' ') files)"
+fi
+exit "$status"

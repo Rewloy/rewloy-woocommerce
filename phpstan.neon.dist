@@ -1,0 +1,17 @@
+# PHPStan over the plugin's own code, with WordPress and WooCommerce stubs
+# (no WordPress needed). Tests and their doubles are not analysed: the doubles
+# stand in for classes the stubs already describe.
+includes:
+    - vendor/szepeviktor/phpstan-wordpress/extension.neon
+parameters:
+    level: 8
+    paths:
+        - rewloy-for-woocommerce.php
+        - uninstall.php
+        - src
+    tmpDir: build/phpstan
+    scanFiles:
+        - vendor/php-stubs/woocommerce-stubs/woocommerce-stubs.php
+    treatPhpDocTypesAsCertain: false
+    checkUninitializedProperties: true
+    reportUnmatchedIgnoredErrors: true
