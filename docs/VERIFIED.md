@@ -1,5 +1,20 @@
 # Verified on a real WordPress
 
+> **This run is of 0.1.0.** Version 0.2.0 (connect code, idempotent issue, re-delivery, health;
+> DECISIONS.md D27 to D34) has run only under PHPUnit. Still to run on a real WordPress, and
+> why each could differ from the stubs:
+>
+> 1. **`WC_Webhook::process( $order_id )` for an order that is already `processing` or
+>    `completed`** (D30): that WooCommerce queues the delivery, signs it and cuts the body
+>    through `woocommerce_webhook_payload`, as for a real update. Unit tests use a double.
+> 2. **`as_schedule_single_action( ..., unique = true )` and `as_unschedule_action`** (D29): that a
+>    repeat of an unclear answer runs at its time and that a settled order's pending action is
+>    cancelled. The check-6 style run (`wp action-scheduler run`) is the way.
+> 3. **Against the real Rewloy**: spending a code, the key it returns, the replay on the key and
+>    `order.result`. The fake of this document does not know them; a fake that does would
+>    still be a fake. This needs a code made in a Rewloy test environment (`rwk_test_`).
+> 4. The connect screen and the new health rows in a browser, in `en_US` and `tr_TR`.
+
 Run on 4 October 2026. Until then the plugin had only run under PHPUnit with stubs.
 This file says what was run, what was seen, what was found wrong and what is still
 unchecked. Defects found are fixed in the same change (see DECISIONS.md D23 to D26).

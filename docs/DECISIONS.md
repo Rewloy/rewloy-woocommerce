@@ -1,8 +1,14 @@
 # Decisions
 
-Decisions taken while building v0.1, when the brief left a choice or the platform
+Decisions taken while building the plugin, when the brief left a choice or the platform
 did something the brief did not expect. The owner was away, so each was decided by
 default and written down here. Each entry says what, and why.
+
+**0.2.0 (4 October 2026)** used what the platform went live with that day (Rewloy's ADR 174:
+`issuePass` replays on an `Idempotency-Key` and takes `orderId` and `shopId`, the one-time connect
+code, the narrow "E-ticaret" role, `GET /v1/me`, shop health). Its decisions are **D27 to D34**.
+An entry of 0.1 that 0.2.0 replaced is marked **Superseded** or **Amended** where it stands and
+says by which; its text is left as it was, because it is the reason the code looked the way it did.
 
 ## What the platform does that shaped the plugin
 
@@ -10,7 +16,7 @@ These were read from the platform's code (`src/api/v1/business.ts`, `cards.ts`,
 `src/app/routes/hooks.ts`, `src/modules/ecommerce/service.ts`) and the published
 OpenAPI document, not assumed.
 
-**D1. `issuePass` neither de-duplicates nor replays on an `Idempotency-Key`.**
+**D1. `issuePass` neither de-duplicates nor replays on an `Idempotency-Key`.** *(Superseded in 0.2.0 by D29: the platform now replays. Points 1 to 4 below, the permanent claims and "never retried", are gone; point 5, one e-mail one card, stays.)*
 In the platform, `issuePass` is not declared with `idempotency` or `replay`, so
 the header is ignored, and `issuePassIn` inserts a new card on every call (no
 look-up by person). The brief asks for "at most once per paid order, with its
@@ -55,7 +61,7 @@ card again", which reads the order afresh, clears the state and runs once more. 
 offered for `failed` only, never for `unknown`, and only to `manage_woocommerce` (the
 order screen itself needs less, so the action checks it).
 
-**D2. The API key's permissions.** The calls need `programs.read` (the card list),
+**D2. The API key's permissions.** *(Superseded in 0.2.0 by D31: `shops.manage` replaces `apikeys.manage`, and the E-ticaret role is exactly enough.)* The calls need `programs.read` (the card list),
 `settings.read` (the link and its orders), `apikeys.manage` (create, pause, delete
 a link: "a shop link has an API key's power") and `passes.issue`. The key screen and
 the 403 message say so. The standard "Yönetici" role does not include
@@ -116,7 +122,7 @@ the plugin row. Every action is a POST: a nonce in a link (a GET) never runs one
 Namespace `Rewloy\WooCommerce`, a tiny PSR-4 loader (`src/autoload.php`); no Composer
 at runtime.
 
-**D9. The key.** Its own option `rewloy_wc_api_key`, written with autoload off; the
+**D9. The key.** *(Amended in 0.2.0 by D27 and D28: the key now usually comes from a connect code, the API-key path is the advanced one, and a test key's mask shows `rwk_test_` and its prefix.)* Its own option `rewloy_wc_api_key`, written with autoload off; the
 settings (no secret) are another option. A `REWLOY_API_KEY` constant wins and then
 nothing is stored. A pasted key is saved only after Rewloy accepts it (a harmless
 `listPrograms` read), so a typo is caught at once and a refused key is never kept. It
@@ -134,7 +140,7 @@ order) and for a cashback card the card's own rate applies, so the form says tha
 the server ignores `rule`/`step` for them. Only active stamp, points, VIP and cashback
 cards are offered (the other types cannot be linked).
 
-**D11. Connect.** `listPrograms` (to check the card and take its `joinUrl`), then
+**D11. Connect.** *(Amended in 0.2.0: D27 adds the connect code. Every safeguard below holds for both ways in.)* `listPrograms` (to check the card and take its `joinUrl`), then
 `createShop` (platform `woocommerce`), then the WooCommerce webhook with the returned
 address and secret: topic `order.updated`, API version `wp_api_v3`, status active,
 the connecting user as its user. Safeguards:
@@ -153,7 +159,7 @@ the connecting user as its user. Safeguards:
   link (`Webhooks::owned`): health, reactivate and delete never touch another webhook,
   whatever id is stored.
 
-**D12. The client's retry rules** follow rewloy-php's list: network errors, 429,
+**D12. The client's retry rules** *(Amended in 0.2.0 by D29: a POST that carries an `Idempotency-Key` is retried, twice. "A POST is never retried" below holds for every other POST.)* follow rewloy-php's list: network errors, 429,
 502-504, 520-524 (and 409 `IDEMPOTENCY_IN_PROGRESS`), up to two retries with jittered
 backoff, a `Retry-After` longer than 10 s not waited for (rewloy-php waits up to 60;
 this runs inside an admin request), and **one retry, not two** (a screen makes two
@@ -175,7 +181,7 @@ never orphaned in Rewloy. If Rewloy cannot be reached (or the key is gone) a sep
 "forget on this site only" removes the webhook and the local state without an API call
 and says the link remains in Rewloy.
 
-**D14. Health.** The screen reads `getShop` and `listShopOrders` (the last 10) on each
+**D14. Health.** *(Extended in 0.2.0 by D32: the last request and the last refused request.)* The screen reads `getShop` and `listShopOrders` (the last 10) on each
 load and the WooCommerce webhook's status and failure count, in the panel's words
 (`Karta işlendi`, `Kartı yok`, `Eşiğin altında`, `Bağlantı kapalıyken`, `Başka para
 birimi`, with the panel's explanations). A webhook WooCommerce disabled can be turned
@@ -183,7 +189,7 @@ on again with one button (failure count reset). A *deleted* webhook cannot be re
 the secret is only shown at creation, so the screen says to disconnect and connect
 again. A failed API call is shown as an error without breaking the page.
 
-**D15. Issuing runs off the payment request**, through Action Scheduler (bundled with
+**D15. Issuing runs off the payment request** *(and, since 0.2.0, an unclear answer is asked again by further scheduled actions: D29)*, through Action Scheduler (bundled with
 WooCommerce) with `as_enqueue_async_action(..., unique = true)`: a slow Rewloy must not
 hold a payment gateway's callback. If the function is missing the issue runs inline.
 The hooks are `woocommerce_order_status_processing` and `..._completed` only (the two
@@ -232,7 +238,13 @@ the plugin with `szepeviktor/phpstan-wordpress` and `php-stubs/woocommerce-stubs
 describe). Static tests pin what the brief demands: every file guards against direct
 access, no network function outside the Client, no `eval`/`exec`-like call, only
 rewloy.com hosts in the code, no `get_post_meta`-style call (HPOS), every
-translatable string uses the text domain.
+translatable string uses the text domain. 0.2.0: 288 tests (199 in 0.1.0). The new ones are
+in `ConnectionTest` (the code flow, its undo and its unclear outcomes, the key check),
+`ClientTest` and `RetryTest` (the keyless client, keyed retries, replay), `IssuerTest` (the
+schedule, the fingerprint, the window, `resend`; the Action Scheduler calls in a separate
+process), `WebhooksTest` (`redeliver`), `AdminTest` (the code screen, the health rows,
+escaping), `MessagesTest` and the I18n tests (the panel's own words). The time a repeat may go
+is moved by editing the order's record (`itIsTime`), never by sleeping.
 
 **D21. Packaging.** `bin/build-zip` copies an allowlist (main file, `uninstall.php`,
 `readme.txt`, `LICENSE`, `src/`, `languages/`) into a folder named after the slug, so
@@ -248,13 +260,12 @@ the lower bounds (6.4, 8.0) are not tested.
 
 ## Known limits
 
-- **The order that earns the invitation may be recorded "Kartı yok".** The card is
-  opened by one scheduled action and the order is delivered by the webhook's own
-  scheduled action; whichever runs first wins. If the webhook runs first, Rewloy finds
-  no card for that order and records it (an order counts once), so that order earns
-  nothing; later orders do. The platform could close this (see the report).
+- ~~**The order that earns the invitation may be recorded "Kartı yok".**~~ **Resolved in
+  0.2.0 (D30).** The card is opened by one scheduled action and the order is delivered by
+  the webhook's own; whichever ran first won, and the order was recorded without a card.
+  Now `issuePass` names the order, Rewloy reopens it, and the plugin delivers it again.
 - **One card per e-mail per shop is enforced only against this plugin's own
-  invitations** (D1.5).
+  invitations** (D1.5, still true: Rewloy opens a card for every call with a new key).
 - **The invitation e-mails whatever address the buyer types**, and states that the
   notice was shown. A third party's address can so be given one card (once per address)
   and one e-mail from the shop. It is the same unverified-address weakness the My
@@ -262,8 +273,10 @@ the lower bounds (6.4, 8.0) are not tested.
   would close it and is not in 0.1.
 - **Subscription renewals** may copy the tick to the renewal order; the address is
   already invited, so the guard answers `exists` and nothing more happens.
-- **A process that dies between the claim and the state** (before the request) leaves
-  the claim and no state: that order is never invited. The safe side.
+- ~~**A process that dies between the claim and the state** leaves the claim and no state:
+  that order is never invited.~~ **Resolved in 0.2.0 (D29):** there is no claim kept for
+  good; the locks expire after two minutes, and the state and the next attempt are written
+  before the request.
 - **Action Scheduler's table names are cached per process**, so on a network the
   uninstall may clear the scheduled actions of the main site only; the rest finish with
   nothing to do (the invitation is off, the options are gone).
@@ -297,12 +310,203 @@ permalinks) and a new connect would have left the tab in the menu and its addres
 **D26. The My Account tab has no heading of its own.** WooCommerce already shows the
 endpoint's title ("Sadakat kartım") at the top of the page; a second heading repeated it.
 
+## 0.2.0: what the platform now offers (Rewloy ADR 174)
+
+**D27. The way in is a connect code, not a pasted key.** A person in the Rewloy panel
+(E-ticaret › Mağaza bağla › WooCommerce › "Rewloy eklentisiyle") chooses the card and the
+rule and gets `rwc_…`, shown once, good for 15 minutes. The Connect screen has one field for
+it. `Connection::connect_with_code` spends it with `POST /v1/shops/connect` (no credential:
+the code is one; `Client::anonymous()` is a client that has no key and refuses every other
+call) and takes from the one answer the link, its secret and an API key bound to that link
+(role E-ticaret, that link only). Then, in this order: the webhook is made with the secret;
+the key goes into its own option (not autoloaded, as D9); the link, the card and the rule
+the code chose go into the settings; the join link for the My Account tab is asked of
+Rewloy with the new key (best effort: without it the tab only omits the link). The secret is
+kept nowhere but in the webhook, and the key is never shown back, only masked.
+
+- **A code is spent by the first answer**, and the answer is shown once. So `connectShop` is
+  never retried (the second try gets `404 CONNECT_TOKEN_INVALID`). With no clear answer the
+  message says the code may or may not be spent, to try it once more, and, if Rewloy then
+  calls it invalid, to delete this shop's link in the panel and make a new code: that is what
+  Rewloy's API.md tells an integration to do.
+- **An answer that cannot be used** (a delivery address that is not this link's on the API's
+  own host, no secret, a key that is not a key) or **a webhook WooCommerce cannot save**: the
+  plugin takes the link back with the key that came back (a bound key may delete its own link,
+  and Rewloy revokes the key with it), keeps nothing, and says the code is spent. If even that
+  fails, or there is no usable key to try it with, the message says where to delete the link.
+  The same truthfulness now applies to the advanced path ("removed again" is said only when
+  Rewloy confirmed it).
+- **`via`** in the settings records how the shop was connected (`code` or `key`). Disconnecting
+  a `code` connection asks Rewloy with the plugin's key, which Rewloy revokes with the link, and
+  then drops it; forgetting the connection on this site only drops it too. A key made by hand
+  stays, as before.
+- A code is refused, without being sent, when `REWLOY_API_KEY` is defined (that key would win
+  over the one the code makes) or an API key is saved (it would be overwritten).
+- The site's title goes with the code (`shopName`, at most 40 characters, control characters
+  stripped), so the key reads "WooCommerce · <shop>" in the panel's key list. It is the only new
+  datum that goes to Rewloy; the privacy text on the screen and in readme.txt names it.
+- **The Connect form is a password field**, like the key's: a code is a credential for fifteen
+  minutes. It is never echoed, not in a message, a flash or an exception (tests pin that).
+
+**D28. The API-key path stays, as an advanced option.** It is inside a `<details>` under the
+code field, and the screen says why it exists: *use it when nobody can make a code*. It is
+sensible because (1) a code is single-use, lasts 15 minutes and needs a person signed in to
+the panel with `apikeys.manage`, `team.manage` and the account password, so a site set up
+from a script (WP-CLI, deployment tooling) or a staging copy cannot use one; (2) a key
+defined as `REWLOY_API_KEY` in wp-config.php is how such sites already keep their secrets,
+and 0.1 promised it; (3) a business may want one key for several environments. What it costs
+is what the code removes: the key is the person's own and may be broad. So it is narrowed
+where it can be:
+
+- the key is checked with `GET /v1/me`, which says what it may do, instead of a `listPrograms`
+  read; a missing permission (`programs.read`, `shops.read` or `settings.read`, `shops.manage`
+  or `apikeys.manage`, `passes.issue`) is named and the key is not saved; a key that holds more
+  is saved with a sentence that the E-ticaret role is enough and a code needs no key at all;
+- a key bound to a shop link of its own (`key.shopId`) is refused: it cannot make another;
+- the screen and the 403 message ask for the E-ticaret role, not for a key that manages keys.
+
+A constant key is not checked when it is defined (nothing runs then), so its shortfall shows
+at `createShop` as a 403 in the same words.
+
+**D29. Once per order rests on the platform's idempotency.** (Supersedes D1's points 1 to 4
+and D12's POST rule; point 5 stays.) Every `issuePass` carries the order's key
+(`woo-<site>-<order id>`, as before), its `orderId` (the same `id` the webhook sends) and the
+link's `shopId`. Rewloy replays the first answer for the same key and body for seven days,
+namespaced per credential, and answers the same key with another body `422
+IDEMPOTENCY_KEY_REUSED`. So:
+
+- **A repeat is safe, and is made.** `Retry::retries_for`: a POST with a key gets two retries
+  (a background action is not an admin page; D12's one retry was for pages); any other POST
+  none. The failures retried are the same as before (D12), `IDEMPOTENCY_IN_PROGRESS` among them;
+  after the retries `RewloyException::outcome_unknown()` now counts that one as unclear (the
+  first request may still open a card), where 0.1 would have called any other 4xx a refusal.
+- **An unclear answer is asked again later, with the same key.** The state stays `unknown`
+  (no longer final) and the first request's record is written to the order before the request:
+  when (`at`), how many times (`n`), when the next may go (`next`) and a fingerprint (`sig`) of
+  the body and of the key's own hash (`wp_hash`, never the key). The next attempt is scheduled
+  before the request, so a process that dies mid-request (an Action Scheduler time limit) leaves
+  its own repeat on the way; success or a refusal cancels it. Delays 5 minutes, an hour, six
+  hours (four attempts); then the note says to use the order action, which a person may press
+  at any time inside six days. When the repeat arrives, the card is mailed then: in 0.1 the
+  link of an unclear answer was lost for good.
+- **A repeat that is not the same request is not sent.** The e-mail was edited, the shop was
+  connected again (another link, so another body, and another key, so another namespace), the
+  card was changed, the key was replaced: the fingerprint differs, and the plugin writes a note
+  and stops (code `CHANGED`) rather than let Rewloy refuse it or, under another key, open a
+  second card. A `422 IDEMPOTENCY_KEY_REUSED` is treated the same way (a card may be open under
+  that key), never as "failed", so the retry action cannot loop on it. After six days (Rewloy
+  keeps a key seven) a repeat is refused too, and an `unknown` order with no record (an erased
+  meta) is never repeated. The note says to look for the customer in the Rewloy panel.
+- **What is left of the claim and lock machinery**, and why each piece is: (a) a lock per order
+  and per address, from the same `INSERT IGNORE` row, that **expires after two minutes** (the
+  longest run is three attempts of ten seconds), is taken before the work and let go in a
+  `finally`; two processes must not both mail the link, and Rewloy cannot see our mail. The
+  address is locked *before* it is searched (0.1 searched first: with a lock that is let go, an
+  order that finished between the two would have been missed); (b) the state on the order, the
+  first thing every run reads; (c) the card's serial, kept beside the state, so that an erased
+  state does not make a settled order look new; (d) the rule of one card per e-mail per shop,
+  from the orders' states (D24), because Rewloy opens a card for every call with a new key.
+  Gone: the per-order and per-address claims **kept for good**, `unknown` as a final state, and
+  "never retried".
+- **What this costs, plainly.** With the state and the serial both erased, a run goes out with
+  the same key: inside seven days Rewloy answers with the first card and the link is mailed a
+  second time (same card); after seven days it would open a second card. 0.1's permanent claim
+  would have stopped that. The order's own meta is the shop's record (D18), and an erase of it is
+  not something the plugin defends against any more. The sibling case (two orders of one
+  address in the same moment, one turned away by the address lock) still ends `exists`, as in
+  0.1, even if the first then fails; it is a window of seconds.
+
+A reply is also kept honest in the order note: if Rewloy says `Idempotent-Replayed: true` the
+note says the card was the one an earlier request of the order had opened.
+
+**D30. `order.result: "resend"` delivers the order again through WooCommerce's webhook.**
+(Closes the known limit "Kartı yok".) The answer's `order` says what became of the order:
+`waiting` (the webhook has not come; it will find this card), `recorded` (settled; nothing
+changes), `resend` (the order's webhook reached Rewloy first and was recorded without a card;
+the card has reopened it, and a signed delivery within seven days is credited from its own
+body). On `resend` the plugin calls `Webhooks::redeliver`, which hands the order to
+`WC_Webhook::process( $order_id )` of the webhook that is ours (its address names our link)
+and active.
+
+- **Why `process`.** It is the entry point a real order update uses: it queues the delivery in
+  WooCommerce's own queue, signs it with the same secret, and builds the body through the same
+  `woocommerce_webhook_payload` filter, so the delivery is the cut-down body of D6 and nothing
+  more. `deliver()` would run in our request and hold the queue worker for the webhook's
+  timeout; building the body and the signature ourselves would repeat what WooCommerce does.
+- **It reports "handed over", not "will arrive":** `process` returns its argument and
+  WooCommerce may silently decline an order it finds invalid. The note says "queued to be sent
+  again; it counts toward the card once that delivery arrives". If the webhook is missing, off
+  or throws, the card is still recorded and mailed, and the note says the order could not be
+  sent again and what to do inside the seven days: turn the webhook on and save the order
+  again (which is itself an `order.updated`).
+- Only a `resend` from Rewloy triggers it. The plugin does not re-deliver on a guess.
+- A replayed answer carries the first call's `order.result`; if the first process died after
+  the card but before the delivery, the repeat delivers it.
+
+**D31. Permissions: `shops.manage`, and the E-ticaret role.** (Supersedes D2.) Rewloy added
+`shops.manage` ("Mağaza bağlantısı yönetimi") for creating, pausing and deleting links and
+`shops.read` for reading them, and a preset role "E-ticaret" of exactly `programs.read`,
+`shops.read`, `shops.manage` and `passes.issue`. The plugin needs those four, so the key no
+longer has to manage API keys, and the standard "Yönetici" role (which has neither) is no
+longer the obstacle D2 described. The old names (`apikeys.manage`, `settings.read`) are still
+accepted by Rewloy and by the plugin's check. The connect code's bound key has this role for
+the link's card only.
+
+**D32. Health, in the panel's words.** `getShop` now carries `lastDelivery` (`{at, result}`:
+when the last *signed* request came and what became of it), `lastRefusal` (`{at, reason:
+bad_signature}`: the last request whose signature did not match, at most one a minute) and
+`pluginKey` (`{id, prefix, name}`). The connected screen shows them, read from
+`src/views/shops.ts` word for word, in the Turkish:
+
+- *Mağazadan son istek*: the time and the result: *Karta işlendi*, *Kartı yok*, *Eşiğin
+  altında*, *Bağlantı kapalıyken*, *Başka para birimi*, and the four that are not outcomes of an
+  order, *Kayıtlı siparişin tekrarı*, *Ödenmemiş sipariş (kaydedilmedi)*, *Sipariş numarası
+  yok*, *Okunamadı*. With none yet: *Mağazadan henüz imzalı bir istek gelmedi.* A result Rewloy
+  adds later is shown as it is (escaped), not hidden;
+- *Reddedilen son istek*: the time and *İmza tutmadı*, with the panel's hint (an unsigned request
+  came, was refused, and no order was affected; if it keeps appearing, look at the webhook in
+  the shop);
+- *Rewloy'daki anahtar*: the key's name and its ten public characters, so the person can find it
+  in the panel's list of keys.
+
+The panel's other health message, "no request for 24 hours; the connect answer may have been
+lost", is **not** copied: in the plugin that case cannot be a connected shop. A lost connect
+answer leaves the plugin *not* connected, with an error that says what to do (D27). A quiet
+shop with no paid order for a day is not a fault, and the screen does not say it is.
+
+**D33. A test environment's key is said to be one.** Rewloy's test keys start `rwk_test_`; a
+connect code made in a test environment returns one. The screen then says so: cards and orders
+are not real and nothing reaches customers *from Rewloy*. It also says what Rewloy cannot
+control: the plugin still e-mails the card link to the address typed at checkout (WordPress
+sends that mail, not Rewloy), so test orders only. The mode is read from the key's prefix,
+not stored: nothing to go stale, and Rewloy refuses a key whose prefix was edited
+(`KEY_MODE_MISMATCH`).
+
+**D34. Upgrading from 0.1.0 needs no migration.** 0.1.0 was never published. A 0.1 connection
+(a key, `via` unset) reads as a key connection: disconnecting keeps the key, as 0.1 did. The
+permanent claim rows 0.1 left are plain locks now and are taken over once older than two
+minutes (uninstall still removes every row with the prefix). An order 0.1 left `unknown` has no
+record of its request, so 0.2 never repeats it, which is 0.1's own promise kept.
+
+**What the platform could still add** (for the next brief): `listShopOrders` filterable by
+`orderId` (or an `order` in `getPass`), so the plugin could check an `unknown` order against
+Rewloy before repeating it and not only trust the key; a way to read a connect answer again
+for a few minutes with the same code and the same `shopName` (a replay, as `issuePass` has), so
+a lost answer would not cost a link and a new code; and replay for longer than seven days, or a
+way to ask whether a key is still remembered.
+
 ## Still not verified
 
-- Anything against the real Rewloy: its https host, whether it honours the
-  `Idempotency-Key` (D1 says it does not), and that it accepts the trimmed body: the fake
-  verifies the signature the way `handleOrder` is written (HMAC-SHA256, base64, over the
-  raw bytes), which is not the same as the real service.
+- Anything against the real Rewloy: its https host, that it accepts the trimmed body (the
+  fake verifies the signature the way `handleOrder` is written: HMAC-SHA256, base64, over
+  the raw bytes, which is not the same as the real service), and, new in 0.2.0, the whole
+  of D27 to D32: spending a code, the key it returns, replay on the key, `order.result`.
+  The 0.2.0 code was written from Rewloy's `docs/API.md` and `src/api/v1/business.ts`,
+  `cards.ts` and `auth.ts` and run only under PHPUnit; no real call was made.
+- On a real WordPress, new in 0.2.0: that `WC_Webhook::process( $order_id )` queues the
+  delivery of an order that is already `processing` or `completed` (D30), and that
+  `as_schedule_single_action` with `unique = true` behaves as D29 says. docs/VERIFIED.md
+  describes the 0.1.0 run and says what 0.2.0 still needs.
 - WordPress below 7.1 and WooCommerce below 11.1 (the declared minimums are 6.4 and 8.0);
   PHP 8.1 at run time (the code is only syntax-checked there); multisite.
 - A real mail transport (the run caught `wp_mail` calls), and Action Scheduler's own
