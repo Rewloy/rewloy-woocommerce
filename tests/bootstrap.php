@@ -17,3 +17,4 @@ define( 'EP_PAGES', 4096 );
 require_once dirname( __DIR__ ) . '/vendor/autoload.php';
 require_once dirname( __DIR__ ) . '/src/autoload.php';
 require_once __DIR__ . '/Doubles.php';
+require_once __DIR__ . '/FeaturesUtil.php';

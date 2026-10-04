@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# Rebuilds languages/rewloy-for-woocommerce.pot from the source with GNU gettext.
+# (WordPress.org builds its own from the code too; this one ships in the zip.)
+set -euo pipefail
+cd "$(dirname "$0")/.."
+version=$(sed -n 's/^ \* Version: *//p' rewloy-for-woocommerce.php)
+files=$(find src -name '*.php' | sort; echo rewloy-for-woocommerce.php)
+# shellcheck disable=SC2086
+xgettext --language=PHP --from-code=UTF-8 \
+	--keyword=__:1 --keyword=_e:1 --keyword=_x:1,2c --keyword=_n:1,2 \
+	--keyword=esc_html__:1 --keyword=esc_attr__:1 --keyword=esc_html_e:1 --keyword=esc_attr_e:1 \
+	--add-comments=translators --sort-by-file --no-wrap \
+	--package-name="Rewloy for WooCommerce" --package-version="$version" \
+	--copyright-holder="Rewloy" --msgid-bugs-address="https://github.com/Rewloy/rewloy-woocommerce/issues" \
+	-o languages/rewloy-for-woocommerce.pot $files
+# A neutral header: the date changes on every run and would make every rebuild a diff.
+sed -i.bak \
+	-e '/^"POT-Creation-Date:/d' \
+	-e '/^"PO-Revision-Date:/d' \
+	-e '/^"Last-Translator:/d' \
+	-e '/^"Language-Team:/d' \
+	-e '/^"Plural-Forms:/d' \
+	-e '1,5c\
+# Rewloy for WooCommerce: translation template.\
+# This file is distributed under the same license as the Rewloy for WooCommerce package.\
+#' \
+	-e '/^#, fuzzy$/d' \
+	languages/rewloy-for-woocommerce.pot && rm -f languages/rewloy-for-woocommerce.pot.bak
+echo "languages/rewloy-for-woocommerce.pot: $(grep -c '^msgid ' languages/rewloy-for-woocommerce.pot) entries"

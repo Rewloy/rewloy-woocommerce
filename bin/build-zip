@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# Builds the WordPress.org zip: the plugin's files only, in a folder named after the slug.
+#
+#   bin/build-zip [output-dir]      (default: build/)
+#
+# An allowlist, not a denylist: tests, vendor/, docs, CI and tooling can never leak in.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+slug="rewloy-for-woocommerce"
+out="${1:-build}"
+version=$(sed -n 's/^ \* Version: *//p' "$slug.php")
+if [ -z "$version" ]; then
+	echo "build-zip: no Version in $slug.php" >&2
+	exit 1
+fi
+stable=$(sed -n 's/^Stable tag: *//p' readme.txt)
+if [ "$stable" != "$version" ]; then
+	echo "build-zip: readme.txt says Stable tag $stable but the plugin is $version" >&2
+	exit 1
+fi
+if ! command -v zip >/dev/null 2>&1; then
+	echo "build-zip: the zip command is needed" >&2
+	exit 1
+fi
+for f in languages/rewloy-for-woocommerce-tr_TR.mo languages/rewloy-for-woocommerce.pot; do
+	[ -f "$f" ] || { echo "build-zip: $f is missing (bin/make-pot, bin/make-mo)" >&2; exit 1; }
+done
+
+stage=$(mktemp -d)
+trap 'rm -rf "$stage"' EXIT
+mkdir -p "$stage/$slug"
+cp "$slug.php" uninstall.php readme.txt LICENSE "$stage/$slug/"
+cp -R src languages "$stage/$slug/"
+find "$stage" -name '.DS_Store' -delete
+
+mkdir -p "$out"
+zip_path="$(cd "$out" && pwd)/$slug-$version.zip"
+rm -f "$zip_path"
+( cd "$stage" && find "$slug" -type f | LC_ALL=C sort | zip -X -q "$zip_path" -@ )
+echo "$zip_path"
+echo "$(unzip -Z1 "$zip_path" | wc -l | tr -d ' ') files, $(du -h "$zip_path" | cut -f1)"

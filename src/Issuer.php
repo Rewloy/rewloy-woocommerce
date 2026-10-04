@@ -301,12 +301,13 @@ final class Issuer {
 		/* translators: %s: the shop's name. */
 		$subject = sprintf( __( 'Your %s loyalty card', 'rewloy-for-woocommerce' ), $site );
 		$body    = sprintf(
-			/* translators: 1: order number, 2: shop name, 3: card link, 4: data controller's name. */
-			__( "Hello,\n\nYou asked for a loyalty card with your order #%1\$s at %2\$s. Open it here:\n\n%3\$s\n\nThis link is private: it opens your card with your details. Keep it to yourself.\n\nData controller: %4\$s. Details: https://rewloy.com/gizlilik#kart-sahipleri\n", 'rewloy-for-woocommerce' ),
+			/* translators: 1: order number, 2: shop name, 3: card link, 4: data controller's name, 5: privacy notice link. */
+			__( "Hello,\n\nYou asked for a loyalty card with your order #%1\$s at %2\$s. Open it here:\n\n%3\$s\n\nThis link is private: it opens your card with your details. Keep it to yourself.\n\nData controller: %4\$s. Details: %5\$s\n", 'rewloy-for-woocommerce' ),
 			$order->get_order_number(),
 			$site,
 			$card_url,
-			$name
+			$name,
+			Checkout::PRIVACY_URL
 		);
 		return (bool) wp_mail( $email, $subject, $body );
 	}

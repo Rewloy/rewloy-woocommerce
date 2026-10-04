@@ -2,14 +2,125 @@
 
 **WooCommerce mağazanızın siparişleri Rewloy sadakat kartlarını doldursun.**
 
-> **Durum: hazırlanıyor.** Eklentinin henüz yayımlanmış bir sürümü yok. WooCommerce
-> mağazanızı Rewloy'a **bugün eklentisiz bağlayabilirsiniz**; yolu aşağıda.
+> **Durum: önizleme (0.x): yayımlanmadı.** Eklentinin henüz yayımlanmış bir sürümü
+> yok; WordPress.org dizininde de değil. Kod burada, test edilmiş ama gerçek bir
+> WordPress'te henüz denenmemiş hâliyle duruyor. WooCommerce mağazanızı Rewloy'a
+> **bugün eklentisiz de bağlayabilirsiniz**; yolu aşağıda.
 
 [Rewloy](https://rewloy.com), işletmelerin dijital sadakat kartlarını
 müşterinin telefonuna koyar: damga, puan, VIP, cashback, hediye kartı, kupon ve
 indirim. Kartlar iPhone'da Apple Cüzdan'da, Android'de Rewloy Cüzdan ve Google
 Cüzdan'da, her yerde web kartında açılır. Kasada QR okutulur. Online satışta ise
 ödenen sipariş kartı kendiliğinden doldurur.
+
+## Eklenti ne yapar
+
+- **Tek adımda bağlanma.** WooCommerce › Rewloy ekranında Rewloy API anahtarını
+  yapıştırın, kartı ve kuralı seçin, **Bağla**'ya basın. Rewloy'daki bağlantıyı ve
+  WooCommerce webhook'unu eklenti kurar. Ekranda webhook'un durumu, başarısız
+  teslim sayısı ve son siparişler, panelin kendi sözleriyle sonuçlarıyla görünür:
+  *Karta işlendi*, *Kartı yok*, *Eşiğin altında*, *Bağlantı kapalıyken*, *Başka
+  para birimi*. Aynı ekrandan bağlantıyı duraklatır, sürdürür ya da kaldırırsınız.
+- **Kurallar** panelle aynı: damga ve puan kartlarında sipariş başına ya da sipariş
+  tutarına göre; VIP kartında her ödenmiş sipariş bir ziyaret; cashback kartında
+  kartın kendi oranı.
+- **Ödeme sayfasında davet (isteğe bağlı, varsayılan kapalı).** İşaretsiz bir kutu ve
+  yanında aydınlatma metni. Sipariş ödendiğinde ve kutu işaretlenmişse fatura
+  e-postası için **en fazla bir kez** kart açılır; kartın özel bağlantısı alıcıya
+  e-postayla gider, mağazada saklanmaz. Klasik ödeme sayfasında ve (WooCommerce
+  8.9+) blok ödeme sayfasında çalışır.
+- **Hesabım › Sadakat kartım (isteğe bağlı, varsayılan kapalı).** Kısa bir metin,
+  Rewloy Cüzdan düğmesi ve katılım bağlantınız. **Kart verisi göstermez ve Rewloy'a
+  çağrı yapmaz:** WooCommerce bir hesabın e-postasının kişiye ait olduğunu
+  doğrulamaz; e-postayla eşleşen kartı göstermek, başkasının adresiyle kayıt olan
+  herkesin onun kartını görmesi demek olurdu. Müşteri adresini Rewloy Cüzdan'da
+  bir kodla kanıtlar ve kartlarını orada görür.
+- HPOS (özel sipariş tabloları) uyumlu; siparişlere yalnız `WC_Order` API'siyle dokunur.
+- Çalışma zamanında Composer bağımlılığı yok; başka eklentilerle çakışmaz.
+- Türkçe ve İngilizce (`languages/`). MIT lisanslı, izleme yok, uzaktan kod yok.
+
+Gereksinimler: WordPress 6.4+, WooCommerce 8.0+, PHP 8.1+ ve e-ticaret özelliği olan
+bir Rewloy hesabı.
+
+## Kurulum
+
+WordPress.org'da yayımlanana kadar:
+
+1. Bu deponun **Releases** sayfasındaki `rewloy-for-woocommerce-x.y.z.zip` dosyasını
+   indirin (ilk sürüm yayımlandığında). Kendiniz üretmek için: `composer install`
+   ardından `bin/build-zip`; zip `build/` altında çıkar.
+2. WordPress'te **Eklentiler › Yeni ekle › Eklenti yükle** ile yükleyip etkinleştirin.
+3. **WooCommerce › Rewloy**: Rewloy panelinde **Geliştirici** bölümünden oluşturduğunuz
+   API anahtarını yapıştırın. Anahtar; kartları ve ayarları görme, API anahtarı ve
+   mağaza bağlantısı yönetme, kart verme yetkisi taşımalı. Rewloy anahtarı
+   denetler, ancak ondan sonra kaydedilir.
+4. Kartı ve kuralı seçip **Bağla**'ya basın.
+
+Anahtarı `wp-config.php`'de de tanımlayabilirsiniz; o zaman o geçerlidir ve hiçbir
+yere kaydedilmez:
+
+```php
+define( 'REWLOY_API_KEY', 'rwk_…' );
+```
+
+Anahtar ekranda bir daha gösterilmez; yalnız `rwk_` ve Rewloy'un kendi listelerinde
+yazdığı gizli olmayan 10 karakter görünür.
+
+## Neler gider
+
+Eklenti yalnız Rewloy'a (`https://app.rewloy.com`) veri gönderir.
+
+| Ne zaman | Ne gider |
+|---|---|
+| Bağlanırken ve yönetirken (yalnız `manage_woocommerce`) | API anahtarı (her çağrıda yetki başlığı olarak), seçilen kart ve kural. Yanıt: kart listesi, bağlantının durumu, son siparişlerin numarası, sonucu ve zamanı. |
+| Her sipariş güncellemesinde (WooCommerce webhook'u) | Siparişin **numarası, durumu, para birimi, tutarı ve fatura e-postası**; yalnız mağazanın ve Rewloy'un bildiği bir sırla imzalı. Ad, adres, telefon ve ürünler **gitmez**: eklenti webhook'un içeriğini bu alanlara indirir. Rewloy e-postayı yalnız mevcut kartı bulmak, tutarı yalnız hesaplamak için okur; sipariş numarasını, sonucunu ve zamanını saklar. |
+| Davet açıksa ve alıcı kutuyu işaretlediyse, sipariş ödenince | Fatura e-postası, bir kez, kart açmak için; yanında aydınlatma metninin sunulduğu beyanı. |
+| Hesabım sekmesi | Hiçbir şey. |
+
+Müşterilerinizi, sipariş e-postası ve tutarının kart eşleştirmesi için Rewloy'a
+iletildiği konusunda aydınlatmak sizin yükümlülüğünüzdür; ödeme sayfasındaki kutu
+katılım formunun veri sorumlusu notunu işletmenizin adıyla gösterir
+(WooCommerce › Rewloy'da ad ve iletişim e-postası girilir). Ayrıntılar:
+[aydınlatma metni](https://rewloy.com/gizlilik), [koşullar](https://rewloy.com/kosullar).
+
+**Eklentiyi silmek** ayarlarını ve webhook'unu bu siteden kaldırır. Rewloy'daki
+hiçbir şeyi silmez: bağlantı ve kartlar, siz Rewloy panelinden silene kadar durur.
+Ayar ekranı bunu söyler.
+
+## Güvenlik
+
+- Her ayar işlemi `manage_woocommerce` ister, ardından kendi nonce'unu denetler;
+  her girdi temizlenir, her çıktı kaçışlanır; her PHP dosyası doğrudan açılmaya
+  karşı korumalıdır.
+- API anahtarı kendi seçeneğinde (otomatik yüklenmez) durur, hiçbir mesaja,
+  nota, günlüğe ya da hata iletisine yazılmaz, ekranda geri gösterilmez.
+- Webhook'un teslim adresi yalnız API'nin kendi sunucusunda ve
+  `/hooks/store/<bağlantı>` yolunda kabul edilir; başka bir adres gelirse
+  hiçbir şey bağlanmaz ve oluşan bağlantı geri alınır.
+- Kart açma (`issuePass`) sipariş başına **en fazla bir kez**: istekten önce siparişin
+  üstüne atomik bir kilit alınır, istek hiçbir koşulda yinelenmez, yanıt belirsizse
+  (zaman aşımı, 5xx) sipariş notu bunu söyler ve bir daha gönderilmez. Aynı
+  e-posta bu mağazadan bir kez davet edilir. Ayrıntı: [docs/DECISIONS.md](docs/DECISIONS.md).
+
+Bir güvenlik açığı bulursanız [SECURITY.md](SECURITY.md) dosyasındaki yoldan
+özel olarak bildirin. Lütfen herkese açık issue açmayın.
+
+## Geliştirme
+
+PHP 8.1+ ve Composer yeter; WordPress, MySQL ya da Docker gerekmez.
+
+```sh
+composer install
+bin/lint                       # php -l, her dosya
+vendor/bin/phpstan analyse     # WordPress ve WooCommerce stub'larıyla
+vendor/bin/phpunit             # Brain Monkey ile; ağa hiç çıkmaz
+bin/make-pot && bin/make-mo    # çeviri şablonu ve .mo (GNU gettext gerekir)
+bin/build-zip                  # WordPress.org zip'i: build/
+```
+
+Testler gerçek bir WordPress ya da WooCommerce çalıştırmaz; WordPress işlevlerini
+Brain Monkey, WooCommerce sınıflarını küçük test çiftleri karşılar. Kararlar:
+[docs/DECISIONS.md](docs/DECISIONS.md).
 
 ## Bugün, eklentisiz
 
@@ -40,18 +151,6 @@ Rewloy siparişten yalnız numarasını, sonucunu ve zamanını saklar. E-posta 
 tutar yalnız eşleştirmek ve hesaplamak için okunur, kaydedilmez. Gelen her
 sipariş, sonucuyla birlikte panelde bağlantının kendi sayfasında görünür.
 
-## Eklenti neler getirecek
-
-- **Tek adımda bağlanma.** Rewloy API anahtarını yapıştırıp kartı seçmek
-  yeter. Webhook'u eklenti kurar ve sağlığını gösterir.
-- **Hesabım › Kartım.** Müşteri kartını ve bakiyesini mağazanın kendi
-  sayfasında görür; telefonunun cüzdanına ekleyebilir.
-- **Ödeme sayfasında katılım daveti.** Kartı olmayan müşteriye, KVKK
-  aydınlatmasıyla birlikte.
-- WordPress.org eklenti dizininde yayımlanacak.
-
-Liste bir plandır, söz değildir. Neyin geldiğini sürüm notları söyleyecek.
-
 ## Belgeler
 
 | | |
@@ -60,11 +159,7 @@ Liste bir plandır, söz değildir. Neyin geldiğini sürüm notları söyleyece
 | API referansı | https://rewloy.com/gelistiriciler/api |
 | E-ticaret | https://rewloy.com/e-ticaret |
 | Değişiklik günlüğü | https://rewloy.com/gelistiriciler/degisiklikler |
-
-## Güvenlik
-
-Bir güvenlik açığı bulursanız [SECURITY.md](SECURITY.md) dosyasındaki yoldan
-özel olarak bildirin. Lütfen herkese açık issue açmayın.
+| Kararlar | [docs/DECISIONS.md](docs/DECISIONS.md) |
 
 ## Lisans
 
@@ -76,7 +171,8 @@ Bir güvenlik açığı bulursanız [SECURITY.md](SECURITY.md) dosyasındaki yol
 
 **Let your WooCommerce shop's orders fill Rewloy loyalty cards.**
 
-**Status: in development.** There is no release of the plugin yet.
+**Status: preview (0.x): not published.** There is no release yet, and it is not on
+WordPress.org. The code is here, tested but not yet run on a real WordPress.
 
 You can connect WooCommerce today without a plugin:
 1. In the Rewloy panel, go to E-ticaret › Mağaza bağla and choose WooCommerce.
@@ -87,9 +183,53 @@ You can connect WooCommerce today without a plugin:
 
 Rewloy stores only the order number, its outcome and the time.
 
-**Planned for the plugin:**
-- one-step connection with an API key;
-- the customer's card in *My Account*;
-- a join invitation at checkout.
+### What the plugin does
 
-It will be published on WordPress.org, MIT licensed.
+- **Connect in one step.** Under WooCommerce › Rewloy paste a Rewloy API key, choose
+  the card and the rule, press *Bağla* (Connect). The plugin creates the link in
+  Rewloy and the WooCommerce webhook itself, and shows the webhook's status and
+  failures and the last orders with their outcomes in the panel's own words. Pause,
+  resume and disconnect are on the same screen.
+- **Rules** as in the panel: per order or per amount for stamp and points cards; one
+  visit per paid order for VIP; the card's own rate for cashback.
+- **Invitation at checkout (optional, off by default).** An unticked box with the
+  privacy notice beside it. When the order is paid and the box was ticked, **at most
+  one** card is opened for the billing e-mail; its private link is e-mailed to the
+  buyer and not stored. Classic checkout, and the block checkout from WooCommerce 8.9.
+- **My Account › "Sadakat kartım" (optional, off by default).** A text, a button to
+  Rewloy Cüzdan and your join link. **No card data and no call to Rewloy**:
+  WooCommerce does not verify that an account's e-mail is the person's own, so a
+  card matched by e-mail must never be shown.
+- HPOS compatible, no runtime Composer dependency, Turkish and English, MIT, no
+  tracking, no remote code.
+
+Requires WordPress 6.4+, WooCommerce 8.0+, PHP 8.1+ and a Rewloy account with the
+e-commerce feature.
+
+### Install
+
+Until it is on WordPress.org: take the zip from this repository's Releases (once the
+first one is published) or build it with `composer install && bin/build-zip`, upload it
+under Plugins › Add New › Upload Plugin, activate it, and open WooCommerce › Rewloy.
+The API key needs the permissions to see cards and settings, to manage API keys and
+shop links, and to issue cards. It can also be defined as `REWLOY_API_KEY` in
+`wp-config.php`. The key is never shown back, only `rwk_` and its ten public
+characters.
+
+### What is sent
+
+Only to Rewloy (`https://app.rewloy.com`): the API key, the chosen card and rule when
+you connect and manage; for each order update, the webhook sends the order's number,
+status, currency, total and billing e-mail, signed with a secret (the plugin cuts the
+webhook's body down to those fields: no names, addresses, phone numbers or items); if
+you turn the invitation on, the billing e-mail of an order whose box was ticked, once.
+The My Account tab sends nothing. Deleting the plugin removes its options and webhook
+from your site and deletes nothing in Rewloy. As the shop you must inform your
+customers that order e-mails and totals go to Rewloy for matching.
+
+### Development
+
+PHP 8.1+ and Composer; no WordPress, MySQL or Docker. `composer install`, then
+`bin/lint`, `vendor/bin/phpstan analyse`, `vendor/bin/phpunit`, `bin/build-zip`. See
+[docs/DECISIONS.md](docs/DECISIONS.md) for every decision and its reason, and
+[SECURITY.md](SECURITY.md) to report a vulnerability privately.

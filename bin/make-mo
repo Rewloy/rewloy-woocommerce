@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Compiles every languages/*.po to its .mo with GNU gettext (the .mo files are committed:
+# the zip and a GitHub install must work without a build step).
+set -euo pipefail
+cd "$(dirname "$0")/.."
+for po in languages/*.po; do
+	msgfmt --check --output-file="${po%.po}.mo" "$po"
+	echo "${po%.po}.mo"
+done
