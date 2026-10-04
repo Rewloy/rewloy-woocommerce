@@ -521,7 +521,8 @@ final class Issuer {
 	 * ignores it (WooCommerce only notes "not supported on the current order datastore"): every other order of
 	 * the address would then count as an earlier invitation, and a returning customer whose first order never
 	 * invited anyone would be told "exists" and get no card. The search reads at most SEARCH_PAGES * SEARCH_PAGE
-	 * orders of one address, newest first; the e-mail claim (see run()) is the guard past that.
+	 * orders of one address, newest first; the e-mail claim (see run()) is the guard past that. The order itself is
+	 * skipped in the loop, not with `exclude` (a NOT IN the WordPress VIP and Plugin Check rules warn against).
 	 *
 	 * @return int|null The earlier order's id.
 	 */
@@ -530,7 +531,6 @@ final class Issuer {
 			$ids = wc_get_orders(
 				array(
 					'billing_email' => $email,
-					'exclude'       => array( $order_id ),
 					'limit'         => self::SEARCH_PAGE,
 					'paged'         => $page,
 					'orderby'       => 'ID',

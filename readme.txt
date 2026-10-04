@@ -107,7 +107,7 @@ Türkçe özet: Eklenti yalnız Rewloy'a veri gönderir (bağlanırken bağlant�
 == Changelog ==
 
 = 0.2.1 =
-* WordPress Plugin Check: request input is unslashed and sanitised in one step, an exception's text is marked as escaped where it is shown, and the short description fits 150 characters. No behaviour changes.
+* WordPress Plugin Check: request input is unslashed and sanitised in one step, an exception's text is marked as escaped where it is shown, and the short description fits 150 characters, and the earlier-invitation lookup skips the order itself in its loop instead of with `exclude`. No behaviour changes.
 
 = 0.2.0 =
 * Connect with a one-time code made in the Rewloy panel: no API key of your own, and the key the plugin keeps can work with this shop's link only. The API key stays as an advanced option, checked with the new self-check and with the E-ticaret role in mind.

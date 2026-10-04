@@ -8,7 +8,7 @@ Every decision and its reason: [docs/DECISIONS.md](docs/DECISIONS.md).
 
 ## 0.2.1 (4 Oct 2026)
 
-- WordPress Plugin Check: request input is unslashed and sanitised in one step, an exception's text is marked as escaped where it is shown (Admin and the order notes escape it on output), the short description fits 150 characters, and the bundled Turkish translation keeps its `load_plugin_textdomain` with the reason. No behaviour changes.
+- WordPress Plugin Check: request input is unslashed and sanitised in one step, an exception's text is marked as escaped where it is shown (Admin and the order notes escape it on output), the short description fits 150 characters, and the earlier-invitation lookup skips the order itself in its loop instead of with `exclude`, and the bundled Turkish translation keeps its `load_plugin_textdomain` with the reason. No behaviour changes.
 
 ## 0.2.0 (4 Oct 2026)
 
