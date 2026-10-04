@@ -5,8 +5,8 @@
  * Rewloy's issuePass does not de-duplicate (every call opens a card) and does
  * not replay on an Idempotency-Key, so the guarantee is the plugin's own:
  *
- *  1. an atomic claim on the order (an option row, added with INSERT, that only
- *     one process can win) before anything is sent;
+ *  1. an atomic claim on the order (an options row added with INSERT IGNORE,
+ *     which only one process can win; see Lock) before anything is sent;
  *  2. the order's own state meta, checked before and after the claim;
  *  3. the call is sent once and NEVER retried. When the answer is unclear (no
  *     answer, a 5xx), the state becomes "unknown" and nothing is sent again;
@@ -48,10 +48,16 @@ final class Issuer {
 
 	/** @var callable(string=): ?Client */
 	private $client_factory;
+	private Lock $lock;
 
-	/** @param callable(string=): ?Client $client_factory A client for the saved key; null without one. */
-	public function __construct( private Settings $settings, callable $client_factory ) {
+	/**
+	 * @param Settings                   $settings       The saved settings.
+	 * @param callable(string=): ?Client $client_factory A client for the saved key; null without one.
+	 * @param Lock|null                  $lock           The per-order lock.
+	 */
+	public function __construct( private Settings $settings, callable $client_factory, ?Lock $lock = null ) {
 		$this->client_factory = $client_factory;
+		$this->lock           = $lock ?? new Lock();
 	}
 
 	/** Is the invitation on and the shop connected to a card? */
@@ -126,18 +132,18 @@ final class Issuer {
 			return 'done';
 		}
 
-		// The claim: add_option is an INSERT on a unique name, so exactly one process wins it.
-		if ( ! add_option( Settings::CLAIM_PREFIX . $id, (string) time(), '', false ) ) {
+		// The claim: an INSERT IGNORE on a unique name, so exactly one process wins it (see Lock).
+		if ( ! $this->lock->acquire( Settings::CLAIM_PREFIX . $id ) ) {
 			return 'claimed';
 		}
 		// Whoever held the claim before may have finished and dropped it: read the order again.
 		$order = wc_get_order( $id );
 		if ( ! $order instanceof \WC_Order ) {
-			delete_option( Settings::CLAIM_PREFIX . $id );
+			$this->lock->release( Settings::CLAIM_PREFIX . $id );
 			return 'no-order';
 		}
 		if ( in_array( (string) $order->get_meta( self::META_STATE ), self::FINAL, true ) ) {
-			delete_option( Settings::CLAIM_PREFIX . $id );
+			$this->lock->release( Settings::CLAIM_PREFIX . $id );
 			return 'done';
 		}
 
@@ -287,7 +293,7 @@ final class Issuer {
 		}
 		$order->save_meta_data();
 		$order->add_order_note( $note, 0 );
-		delete_option( Settings::CLAIM_PREFIX . $order->get_id() );
+		$this->lock->release( Settings::CLAIM_PREFIX . $order->get_id() );
 	}
 
 	/** Mails the card link to the buyer. The link is not kept. */

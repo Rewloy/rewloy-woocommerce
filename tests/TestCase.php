@@ -33,6 +33,7 @@ abstract class TestCase extends PhpUnitTestCase {
 	protected array $responses = array();
 	/** @var list<array{to:string,subject:string,body:string}> */
 	protected array $mails = array();
+	protected \FakeWpdb $wpdb;
 	protected bool $can = true;
 	protected bool $mailOk = true;
 
@@ -47,6 +48,9 @@ abstract class TestCase extends PhpUnitTestCase {
 		\WC_Webhook::$failSave = false;
 
 		$this->options = $this->autoload = $this->transients = $this->requests = $this->responses = $this->mails = array();
+		$this->wpdb              = new \FakeWpdb();
+		$this->wpdb->rows        = &$this->options;
+		$GLOBALS['wpdb']         = $this->wpdb;
 		$this->can     = true;
 		$this->mailOk  = true;
 
@@ -123,6 +127,7 @@ abstract class TestCase extends PhpUnitTestCase {
 	}
 
 	protected function tearDown(): void {
+		unset( $GLOBALS['wpdb'] );
 		Monkey\tearDown();
 		parent::tearDown();
 	}

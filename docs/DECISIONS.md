@@ -17,8 +17,13 @@ look-up by person). The brief asks for "at most once per paid order, with its
 idempotency key" and for "an existing card is not a failure". The API gives no
 way to learn that a card exists. So the guarantee is the plugin's own (`Issuer`):
 
-1. an **atomic claim** on the order before anything is sent: `add_option()` of a
-   per-order row is an `INSERT` on a unique name, which only one process wins;
+1. an **atomic claim** on the order before anything is sent: a per-order options
+   row added with `INSERT IGNORE` (`Lock`, the way WordPress core takes its own
+   upgrade lock), which affects one row for the one process that inserted it and none
+   for any other. `add_option()` is not used: its `ON DUPLICATE KEY UPDATE` can report
+   success to both of two racing callers when the values differ. A process that dies
+   between the claim and the result leaves the claim behind, and the order is then never
+   invited: the safe side;
 2. the order's **state meta** (`queued`, `issued`, `failed`, `unknown`, `exists`),
    read before the claim and again after it;
 3. the call is **never retried**, whatever the failure (see D12). When the answer

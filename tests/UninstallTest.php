@@ -11,18 +11,9 @@ use Rewloy\WooCommerce\Uninstaller;
 
 final class UninstallTest extends TestCase {
 
-	private \FakeWpdb $db;
-
 	protected function setUp(): void {
 		parent::setUp();
-		$this->db = new \FakeWpdb();
-		$GLOBALS['wpdb'] = $this->db;
 		Functions\when( 'is_multisite' )->justReturn( false );
-	}
-
-	protected function tearDown(): void {
-		unset( $GLOBALS['wpdb'] );
-		parent::tearDown();
 	}
 
 	private function webhook( string $url ): \WC_Webhook {
@@ -53,7 +44,7 @@ final class UninstallTest extends TestCase {
 
 	public function test_it_removes_the_claim_rows_and_flash_transients_with_escaped_patterns(): void {
 		Uninstaller::run();
-		$joined = implode( "\n", $this->db->queries );
+		$joined = implode( "\n", $this->wpdb->queries );
 		$this->assertStringContainsString( 'rewloy\_wc\_claim\_%', $joined );
 		$this->assertStringContainsString( '\_transient\_rewloy\_wc\_flash\_%', $joined );
 		$this->assertStringContainsString( 'DELETE FROM wp_options', $joined );

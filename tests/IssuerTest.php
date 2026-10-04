@@ -106,6 +106,22 @@ final class IssuerTest extends TestCase {
 		$this->assertCount( 1, $this->requests );
 	}
 
+	public function test_if_the_database_refuses_the_claim_nothing_is_sent(): void {
+		$this->order();
+		$this->wpdb->failInserts = true;
+		$this->assertSame( 'claimed', $this->issuer()->run( 55 ) );
+		$this->assertSame( array(), $this->requests );
+	}
+
+	public function test_the_claim_is_an_insert_ignore_so_only_one_process_can_win_it(): void {
+		$lock = new \Rewloy\WooCommerce\Lock();
+		$this->assertTrue( $lock->acquire( 'rewloy_wc_claim_9' ) );
+		$this->assertFalse( $lock->acquire( 'rewloy_wc_claim_9' ), 'the second caller is turned away' );
+		$this->assertStringContainsString( 'INSERT IGNORE INTO `wp_options`', implode( "\n", $this->wpdb->queries ) );
+		$lock->release( 'rewloy_wc_claim_9' );
+		$this->assertTrue( $lock->acquire( 'rewloy_wc_claim_9' ) );
+	}
+
 	public function test_a_held_claim_blocks_a_run(): void {
 		$this->order();
 		$this->options[ Settings::CLAIM_PREFIX . '55' ] = '1';

@@ -121,12 +121,19 @@ class WC_Webhook {
 	}
 }
 
-/** The bits of $wpdb the uninstaller uses. */
+/**
+ * The bits of $wpdb the plugin uses. `$rows` is the test's in-memory options table
+ * (bound by reference), so a lock taken here is an option there.
+ */
 class FakeWpdb {
 	public string $options = 'wp_options';
 	public string $prefix  = 'wp_';
+	/** @var array<string,mixed> */
+	public array $rows = array();
 	/** @var list<string> */
 	public array $queries = array();
+	/** When set, INSERT IGNORE reports a database error. */
+	public bool $failInserts = false;
 
 	public function esc_like( string $text ): string {
 		return addcslashes( $text, '_%\\' );
@@ -136,8 +143,20 @@ class FakeWpdb {
 		return vsprintf( str_replace( '%s', "'%s'", $query ), $args );
 	}
 
-	public function query( string $sql ): int {
+	/** @return int|false */
+	public function query( string $sql ) {
 		$this->queries[] = $sql;
+		if ( str_contains( $sql, 'INSERT IGNORE' ) ) {
+			if ( $this->failInserts ) {
+				return false;
+			}
+			preg_match( "/VALUES \\('([^']*)', '([^']*)', 'no'\\)/", $sql, $m );
+			if ( array_key_exists( $m[1], $this->rows ) ) {
+				return 0; // Ignored: it was there.
+			}
+			$this->rows[ $m[1] ] = $m[2];
+			return 1;
+		}
 		return 0;
 	}
 
@@ -145,7 +164,15 @@ class FakeWpdb {
 		return null;
 	}
 
+	/**
+	 * @param array<string,string> $where
+	 * @param list<string>         $format
+	 */
 	public function delete( string $table, array $where, array $format = array() ): int {
+		if ( isset( $where['option_name'] ) && array_key_exists( $where['option_name'], $this->rows ) ) {
+			unset( $this->rows[ $where['option_name'] ] );
+			return 1;
+		}
 		return 0;
 	}
 }
