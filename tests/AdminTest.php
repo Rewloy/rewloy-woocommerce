@@ -88,7 +88,7 @@ final class AdminTest extends TestCase {
 	/** @return array<string,array{0:string}> */
 	public static function actions(): array {
 		$out = array();
-		foreach ( array( 'save_key', 'forget_key', 'connect', 'toggle', 'disconnect', 'reactivate', 'save_options' ) as $a ) {
+		foreach ( array( 'connect_code', 'save_key', 'forget_key', 'connect', 'toggle', 'disconnect', 'reactivate', 'save_options' ) as $a ) {
 			$out[ $a ] = array( $a );
 		}
 		return $out;
@@ -115,7 +115,7 @@ final class AdminTest extends TestCase {
 		$this->nonceOk = false;
 		$settings      = $this->connected();
 		$before   = $this->options;
-		$_POST    = array( 'rewloy_api_key' => self::KEY, 'program_id' => self::PROGRAM, 'invite' => '1', 'pause' => '1' );
+		$_POST    = array( 'rewloy_api_key' => self::KEY, 'rewloy_connect_code' => self::CODE, 'program_id' => self::PROGRAM, 'invite' => '1', 'pause' => '1' );
 		try {
 			$this->admin( $settings )->{'handle_' . $action}();
 			$this->fail( 'expected the nonce failure' );
@@ -157,7 +157,7 @@ final class AdminTest extends TestCase {
 
 	public function test_saving_a_key_saves_it_flashes_and_redirects_without_echoing_the_key(): void {
 		$_POST = array( 'rewloy_api_key' => '  ' . self::KEY . ' ' );
-		$this->script( $this->answer( 200, array( 'data' => array() ) ) );
+		$this->script( $this->meAnswer() );
 		$admin = new Admin(
 			$this->settings,
 			new Connection( $this->settings, new Webhooks( $this->settings ), fn( string $k = '' ) => $this->client( '' !== $k ? $k : self::KEY ) ),
@@ -212,12 +212,88 @@ final class AdminTest extends TestCase {
 		$this->assertArrayNotHasKey( Plugin::FLUSH_OPTION, $this->options, 'no change, no flush' );
 	}
 
-	public function test_the_screen_without_a_key_asks_for_one_and_never_fills_the_field(): void {
+	public function test_the_screen_without_a_key_asks_for_a_code_first_and_a_key_only_as_an_advanced_way(): void {
 		$html = $this->render( $this->admin() );
+		$this->assertStringContainsString( 'type="password" name="rewloy_connect_code"', $html );
+		$this->assertStringContainsString( 'NONCE-rewloy_wc_connect_code', $html );
+		$this->assertStringContainsString( 'value="rewloy_wc_connect_code"', $html );
+		$this->assertStringContainsString( 'one-time code that works for 15 minutes', $html );
+		$this->assertStringContainsString( 'Rewloy eklentisiyle', $html, 'the panel\'s own path to the code' );
+		$this->assertStringContainsString( 'You need no API key of your own', $html );
+		$this->assertLessThan( strpos( $html, 'rewloy_api_key' ), strpos( $html, 'rewloy_connect_code' ), 'the code comes first' );
+		$this->assertMatchesRegularExpression( '#<details[^>]*><summary><strong>Advanced: connect with an API key instead</strong></summary>.*rewloy_api_key.*</details>#s', $html, 'the key form sits inside the advanced block' );
 		$this->assertStringContainsString( 'type="password"', $html );
 		$this->assertStringNotContainsString( 'value="rwk_', $html );
+		$this->assertStringNotContainsString( 'value="rwc_', $html );
 		$this->assertStringContainsString( 'NONCE-rewloy_wc_save_key', $html );
 		$this->assertStringContainsString( 'value="rewloy_wc_save_key"', $html );
+	}
+
+	public function test_the_advanced_block_says_why_it_exists_and_which_role_to_use(): void {
+		$html = $this->render( $this->admin() );
+		$this->assertStringContainsString( 'WP-CLI', $html );
+		$this->assertStringContainsString( 'single-use and lasts 15 minutes', $html );
+		$this->assertStringContainsString( 'E-ticaret role', $html );
+		$this->assertStringNotContainsString( 'manage API keys', $html, 'the key no longer needs to manage keys' );
+	}
+
+	public function test_a_code_is_connected_with_the_posted_code_cleaned_and_the_flash_never_echoes_it(): void {
+		$_POST = array( 'rewloy_connect_code' => '  ' . self::CODE . ' ' );
+		$this->script( $this->connectAnswer(), $this->answer( 200, array( 'data' => array() ) ) );
+		$admin = new Admin(
+			$this->settings,
+			new Connection( $this->settings, new Webhooks( $this->settings ), $this->keyedFactory( $this->settings ), null, $this->anonymousFactory() ),
+			function ( string $url ): void {
+				$this->redirects[] = $url;
+			}
+		);
+		$admin->handle_connect_code();
+		$this->assertSame( array( 'token' => self::CODE, 'shopName' => 'Örnek Mağaza' ), json_decode( $this->requests[0]['args']['body'], true ) );
+		$this->assertTrue( $this->settings->is_connected() );
+		$this->assertSame( self::PLUGIN_KEY, $this->options[ Settings::KEY_OPTION ] );
+		$this->assertSame( array( 'https://shop.example.com/wp-admin/admin.php?page=rewloy-for-woocommerce' ), $this->redirects );
+		$flash = (string) json_encode( $this->transients['rewloy_wc_flash_7'] );
+		$this->assertStringNotContainsString( 'ABCDEFGH', $flash );
+		$this->assertStringNotContainsString( 'SECRET', $flash );
+	}
+
+	public function test_a_refused_code_is_a_flashed_error_and_changes_nothing(): void {
+		$_POST = array( 'rewloy_connect_code' => self::CODE );
+		$this->script( $this->failure( 404, 'CONNECT_TOKEN_INVALID' ) );
+		$admin = new Admin(
+			$this->settings,
+			new Connection( $this->settings, new Webhooks( $this->settings ), $this->keyedFactory( $this->settings ), null, $this->anonymousFactory() ),
+			function ( string $url ): void {
+				$this->redirects[] = $url;
+			}
+		);
+		$admin->handle_connect_code();
+		$this->assertFalse( $this->transients['rewloy_wc_flash_7']['ok'] );
+		$this->assertStringNotContainsString( 'ABCDEFGH', (string) json_encode( $this->transients['rewloy_wc_flash_7'] ) );
+		$this->assertFalse( $this->settings->is_connected() );
+		$this->assertArrayNotHasKey( Settings::KEY_OPTION, $this->options );
+	}
+
+	public function test_a_key_that_a_code_made_is_shown_as_such_and_never_back(): void {
+		$settings = $this->connected( array( 'via' => Settings::VIA_CODE ) );
+		$settings->save_api_key( self::PLUGIN_KEY );
+		$this->script( $this->answer( 200, array( 'data' => array( 'enabled' => true, 'orders' => array() ) ) ), $this->answer( 200, array( 'data' => array() ) ) );
+		$html = $this->render( $this->admin( $settings ) );
+		$this->assertStringContainsString( 'rwk_0a1b2c3d4e••••••••', $html );
+		$this->assertStringContainsString( 'made by the connect code', $html );
+		$this->assertStringNotContainsString( 'SECRETPLUGINKEY', $html );
+		$this->assertStringNotContainsString( self::PLUGIN_KEY, $html );
+		$this->assertStringNotContainsString( 'Test environment', $html );
+	}
+
+	public function test_a_test_environment_key_is_called_out_on_the_screen(): void {
+		$settings = $this->connected( array( 'via' => Settings::VIA_CODE ) );
+		$settings->save_api_key( 'rwk_test_0a1b2c3d4eSECRETPLUGINKEYSECRETPLUGINKEY' );
+		$this->script( $this->answer( 200, array( 'data' => array( 'enabled' => true, 'orders' => array() ) ) ), $this->answer( 200, array( 'data' => array() ) ) );
+		$html = $this->render( $this->admin( $settings ) );
+		$this->assertStringContainsString( 'Test environment: this key belongs to your Rewloy test environment', $html );
+		$this->assertStringContainsString( 'rwk_test_0a1b2c3d4e••••••••', $html );
+		$this->assertStringNotContainsString( 'SECRETPLUGINKEY', $html );
 	}
 
 	public function test_the_key_is_never_shown_back_only_the_mask(): void {
@@ -270,8 +346,9 @@ final class AdminTest extends TestCase {
 		$this->assertStringNotContainsString( '<b>12</b>', $html );
 		$this->assertStringContainsString( '03.10.2026 10:00', $html );
 		$this->assertStringContainsString( 'Kahve Kartı', $html );
-		$this->assertStringContainsString( 'Deleting this plugin removes its settings', $html );
+		$this->assertStringContainsString( 'Deleting this plugin removes its settings, its key and its webhook', $html );
 		$this->assertStringContainsString( 'does not delete anything in Rewloy', $html );
+		$this->assertStringContainsString( 'deleting the link revokes the key', $html );
 		$this->assertStringNotContainsString( 'SECRET', $html );
 		$this->assertStringContainsString( 'value="Örnek A.Ş."', $html );
 	}
@@ -295,6 +372,7 @@ final class AdminTest extends TestCase {
 
 	public function test_the_privacy_section_names_what_is_sent(): void {
 		$html = $this->render( $this->admin() );
+		$this->assertStringContainsString( 'the code and this site&#039;s title', $html );
 		$this->assertStringContainsString( 'number, status, currency and total', $html );
 		$this->assertStringContainsString( 'billing e-mail once the order is processing or completed', $html );
 		$this->assertStringContainsString( 'no tracking', $html );
@@ -303,5 +381,74 @@ final class AdminTest extends TestCase {
 	public function test_a_settings_link_is_added_to_the_plugin_row(): void {
 		$links = $this->admin()->action_links( array( '<a href="x">Deactivate</a>' ) );
 		$this->assertStringContainsString( 'page=rewloy-for-woocommerce', $links[0] );
+	}
+
+	/** The connected screen for a link as getShop answers it. */
+	private function connectedScreen( array $link ): string {
+		$settings = $this->connected( array( 'via' => Settings::VIA_CODE ) );
+		$settings->save_api_key( self::PLUGIN_KEY );
+		$this->makeWebhook();
+		$this->script( $this->answer( 200, array( 'data' => array_merge( array( 'enabled' => true, 'orders' => array() ), $link ) ) ), $this->answer( 200, array( 'data' => array() ) ) );
+		return $this->render( $this->admin( $settings ) );
+	}
+
+	public function test_the_last_request_and_its_result_are_shown_in_the_panels_words(): void {
+		$html = $this->connectedScreen( array( 'lastDelivery' => array( 'at' => '2026-10-04T08:30:00Z', 'result' => 'credited' ) ) );
+		$this->assertStringContainsString( 'Last request from the shop', $html );
+		$this->assertStringContainsString( '04.10.2026 08:30 · Added to the card', $html );
+		$this->assertStringNotContainsString( 'Last refused request', $html );
+		$this->assertStringNotContainsString( 'signature did not match came', $html );
+	}
+
+	public function test_every_result_rewloy_can_give_has_a_label(): void {
+		foreach ( \Rewloy\WooCommerce\Messages::DELIVERY_RESULTS as $result ) {
+			$this->options = array();
+			$html          = $this->connectedScreen( array( 'lastDelivery' => array( 'at' => '2026-10-04T08:30:00Z', 'result' => $result ) ) );
+			$this->assertStringContainsString( '04.10.2026 08:30 · ' . \Rewloy\WooCommerce\Messages::delivery_label( $result ), $html, $result );
+			$this->assertNotSame( $result, \Rewloy\WooCommerce\Messages::delivery_label( $result ), $result . ' is not shown as its raw code' );
+		}
+	}
+
+	public function test_a_shop_that_has_sent_nothing_signed_says_so(): void {
+		$html = $this->connectedScreen( array( 'lastDelivery' => null, 'lastRefusal' => null ) );
+		$this->assertStringContainsString( 'No signed request has come from the shop yet.', $html );
+		$html = $this->connectedScreen( array() );
+		$this->assertStringContainsString( 'No signed request has come from the shop yet.', $html, 'an answer without the field (an older Rewloy) reads the same' );
+	}
+
+	public function test_a_refused_request_is_shown_with_what_it_means(): void {
+		$html = $this->connectedScreen(
+			array(
+				'lastDelivery' => array( 'at' => '2026-10-04T08:30:00Z', 'result' => 'credited' ),
+				'lastRefusal'  => array( 'at' => '2026-10-04T09:45:00Z', 'reason' => 'bad_signature' ),
+			)
+		);
+		$this->assertStringContainsString( 'Last refused request', $html );
+		$this->assertStringContainsString( '04.10.2026 09:45 · Signature did not match', $html );
+		$this->assertStringContainsString( 'came to this shop&#039;s address and was refused; no order was affected', $html );
+		$this->assertStringContainsString( 'check the settings of the webhook in WooCommerce', $html );
+	}
+
+	public function test_what_rewloy_says_about_health_is_escaped_and_a_result_it_adds_later_does_not_break_the_screen(): void {
+		$html = $this->connectedScreen(
+			array(
+				'lastDelivery' => array( 'at' => '2026-10-04T08:30:00Z', 'result' => '<script>x</script>' ),
+				'lastRefusal'  => array( 'at' => 'not a date', 'reason' => '<b>why</b>' ),
+				'pluginKey'    => array( 'id' => self::LINK, 'prefix' => '<i>ab</i>0123456789', 'name' => '<script>alert(1)</script>' ),
+			)
+		);
+		$this->assertStringNotContainsString( '<script>', $html );
+		$this->assertStringNotContainsString( '<b>why</b>', $html );
+		$this->assertStringNotContainsString( '<i>', $html );
+		$this->assertStringContainsString( '&lt;script&gt;x&lt;/script&gt;', $html );
+		$this->assertStringContainsString( 'none yet · ', $html );
+	}
+
+	public function test_the_key_rewloy_lists_for_the_link_is_shown_by_name_and_public_prefix_only(): void {
+		$html = $this->connectedScreen( array( 'pluginKey' => array( 'id' => self::LINK, 'prefix' => '0a1b2c3d4e', 'name' => 'WooCommerce · Örnek Mağaza' ) ) );
+		$this->assertStringContainsString( 'Key in Rewloy', $html );
+		$this->assertStringContainsString( 'WooCommerce · Örnek Mağaza (0a1b2c3d4e…)', $html );
+		$this->assertStringNotContainsString( 'SECRETPLUGINKEY', $html );
+		$this->assertStringNotContainsString( 'Key in Rewloy', $this->connectedScreen( array( 'pluginKey' => null ) ) );
 	}
 }

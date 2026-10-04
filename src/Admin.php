@@ -3,12 +3,13 @@
  * The settings screen: WooCommerce › Rewloy.
  *
  * It is a submenu of WooCommerce, not a tab of WooCommerce › Settings, because
- * the screen has several independent actions (save the key, connect, pause,
- * disconnect, save the options), each with its own nonce, and WooCommerce's
- * settings tabs are one form with one Save button.
+ * the screen has several independent actions (connect with a code, save a key,
+ * connect, pause, disconnect, save the options), each with its own nonce, and
+ * WooCommerce's settings tabs are one form with one Save button.
  *
  * Every action: `manage_woocommerce`, then the nonce, then sanitised input;
- * every output escaped. The API key is never printed back, only a mask.
+ * every output escaped. The API key and the connect code are never printed
+ * back; the key only as a mask.
  *
  * @package Rewloy_For_WooCommerce
  */
@@ -42,7 +43,7 @@ final class Admin {
 	public function register(): void {
 		add_action( 'admin_menu', array( $this, 'add_menu' ) );
 		add_filter( 'plugin_action_links_' . plugin_basename( REWLOY_WC_FILE ), array( $this, 'action_links' ) );
-		foreach ( array( 'save_key', 'forget_key', 'connect', 'toggle', 'disconnect', 'reactivate', 'save_options' ) as $action ) {
+		foreach ( array( 'connect_code', 'save_key', 'forget_key', 'connect', 'toggle', 'disconnect', 'reactivate', 'save_options' ) as $action ) {
 			add_action( 'admin_post_rewloy_wc_' . $action, array( $this, 'handle_' . $action ) );
 		}
 	}
@@ -74,6 +75,10 @@ final class Admin {
 	}
 
 	/* ------------------------------------------------------------------ actions */
+
+	public function handle_connect_code(): void {
+		$this->act( 'connect_code', fn() => $this->connection->connect_with_code( $this->post( 'rewloy_connect_code' ) ) );
+	}
 
 	public function handle_save_key(): void {
 		$this->act( 'save_key', fn() => $this->connection->save_key( $this->post( 'rewloy_api_key' ) ) );
@@ -187,6 +192,7 @@ final class Admin {
 			$this->section_connected();
 			$this->section_options();
 		} elseif ( 'none' === $this->settings->key_source() ) {
+			$this->section_code();
 			$this->section_key();
 		} else {
 			$this->section_connect();
@@ -217,23 +223,44 @@ final class Admin {
 	private function key_row(): void {
 		$source = $this->settings->key_source();
 		$mask   = $this->settings->mask( $this->settings->api_key() );
+		if ( 'constant' === $source ) {
+			$note = __( '(set by REWLOY_API_KEY in wp-config.php)', 'rewloy-for-woocommerce' );
+		} elseif ( Settings::VIA_CODE === $this->settings->get()['via'] ) {
+			$note = __( '(made by the connect code for this shop\'s link only; saved on this site and never shown again)', 'rewloy-for-woocommerce' );
+		} else {
+			$note = __( '(saved on this site; the key is never shown again)', 'rewloy-for-woocommerce' );
+		}
 		echo '<p><strong>' . esc_html__( 'API key', 'rewloy-for-woocommerce' ) . ':</strong> <code>' . esc_html( $mask ) . '</code> ';
-		echo '<span class="description">' . esc_html( 'constant' === $source ? __( '(set by REWLOY_API_KEY in wp-config.php)', 'rewloy-for-woocommerce' ) : __( '(saved on this site; the key is never shown again)', 'rewloy-for-woocommerce' ) ) . '</span></p>';
+		echo '<span class="description">' . esc_html( $note ) . '</span></p>';
+		if ( $this->settings->is_test_key() ) {
+			echo '<div class="notice notice-warning inline"><p>' . esc_html__( 'Test environment: this key belongs to your Rewloy test environment, so cards and orders here are not real and nothing reaches customers from Rewloy. A checkout invitation still e-mails the card link to the address typed at checkout, so use test orders only.', 'rewloy-for-woocommerce' ) . '</p></div>';
+		}
+	}
+
+	private function section_code(): void {
+		echo '<h2>' . esc_html__( 'Connect with a code', 'rewloy-for-woocommerce' ) . '</h2>';
+		echo '<p>' . esc_html__( 'In the Rewloy panel go to E-ticaret › Mağaza bağla › WooCommerce › "Rewloy eklentisiyle". Choose the card and the rule there. Rewloy gives a one-time code that works for 15 minutes; paste it here.', 'rewloy-for-woocommerce' ) . '</p>';
+		$this->form_open( 'connect_code' );
+		echo '<p><label for="rewloy_connect_code">' . esc_html__( 'Connect code', 'rewloy-for-woocommerce' ) . '</label><br />';
+		echo '<input type="password" name="rewloy_connect_code" id="rewloy_connect_code" class="regular-text" autocomplete="off" spellcheck="false" placeholder="rwc_…" required /></p>';
+		submit_button( __( 'Connect', 'rewloy-for-woocommerce' ) );
+		echo '</form>';
+		echo '<p class="description">' . esc_html__( 'Connecting creates the link in Rewloy, a WooCommerce webhook that this plugin keeps, and an API key for this shop only: it sees only this link and can issue cards on its card. The key is saved on this site, never shown again, and Rewloy revokes it when the link is deleted. You need no API key of your own.', 'rewloy-for-woocommerce' ) . '</p>';
 	}
 
 	private function section_key(): void {
-		echo '<h2>' . esc_html__( '1. API key', 'rewloy-for-woocommerce' ) . '</h2>';
-		echo '<p>' . esc_html__( 'Create an API key in the Rewloy panel, under Developer, and paste it here. It must be allowed to see cards and settings, to manage API keys and shop links, and to issue cards. Rewloy checks the key, and only then is it saved.', 'rewloy-for-woocommerce' ) . '</p>';
+		echo '<details style="margin-top:1.5em"><summary><strong>' . esc_html__( 'Advanced: connect with an API key instead', 'rewloy-for-woocommerce' ) . '</strong></summary>';
+		echo '<p>' . esc_html__( 'Use this when nobody can make a code: a site set up from a script (WP-CLI, deployment tooling), a staging copy, or a key kept in wp-config.php. A code is single-use and lasts 15 minutes, and it needs someone signed in to the Rewloy panel. A key of your own stays on this site with whatever it may do, so make it with the E-ticaret role: cards, shop links and issuing cards, and nothing else. Rewloy checks the key, and only then is it saved.', 'rewloy-for-woocommerce' ) . '</p>';
 		$this->form_open( 'save_key' );
 		echo '<p><label for="rewloy_api_key">' . esc_html__( 'API key', 'rewloy-for-woocommerce' ) . '</label><br />';
 		echo '<input type="password" name="rewloy_api_key" id="rewloy_api_key" class="regular-text" autocomplete="off" spellcheck="false" required /></p>';
 		echo '<p class="description">' . esc_html__( 'You can also set it in wp-config.php with define( \'REWLOY_API_KEY\', \'rwk_…\' ); that one then wins.', 'rewloy-for-woocommerce' ) . '</p>';
 		submit_button( __( 'Check and save the key', 'rewloy-for-woocommerce' ) );
-		echo '</form>';
+		echo '</form></details>';
 	}
 
 	private function section_connect(): void {
-		echo '<h2>' . esc_html__( '2. Card and rule', 'rewloy-for-woocommerce' ) . '</h2>';
+		echo '<h2>' . esc_html__( 'Card and rule', 'rewloy-for-woocommerce' ) . '</h2>';
 		$this->key_row();
 		if ( 'option' === $this->settings->key_source() ) {
 			$this->form_open( 'forget_key' );
@@ -293,8 +320,20 @@ final class Admin {
 		}
 		if ( null !== $link ) {
 			$this->row( __( 'Last order seen', 'rewloy-for-woocommerce' ), $this->when( $link['lastOrderAt'] ?? null ) );
+			$this->row( __( 'Last request from the shop', 'rewloy-for-woocommerce' ), $this->last_delivery( $link['lastDelivery'] ?? null ) );
+			$refusal = $this->last_refusal( $link['lastRefusal'] ?? null );
+			if ( '' !== $refusal ) {
+				$this->row( __( 'Last refused request', 'rewloy-for-woocommerce' ), $refusal );
+			}
+			$key = $this->plugin_key( $link['pluginKey'] ?? null );
+			if ( '' !== $key ) {
+				$this->row( __( 'Key in Rewloy', 'rewloy-for-woocommerce' ), $key );
+			}
 		}
 		echo '</tbody></table>';
+		if ( null !== $link && is_array( $link['lastRefusal'] ?? null ) ) {
+			echo '<p class="description">' . esc_html__( 'A request whose signature did not match came to this shop\'s address and was refused; no order was affected. If it keeps appearing, check the settings of the webhook in WooCommerce.', 'rewloy-for-woocommerce' ) . '</p>';
+		}
 
 		if ( '' !== $health['error'] ) {
 			echo '<div class="notice notice-error inline"><p>' . esc_html( $health['error'] ) . '</p></div>';
@@ -380,15 +419,53 @@ final class Admin {
 
 	private function section_privacy(): void {
 		echo '<h2>' . esc_html__( 'What goes to Rewloy', 'rewloy-for-woocommerce' ) . '</h2><ul style="list-style:disc;margin-left:1.5em">';
+		echo '<li>' . esc_html__( 'To connect with a code: the code and this site\'s title, which names the key in Rewloy\'s list of keys. To manage the connection afterwards: the key that came back (or your own API key), and the card and rule when you choose them.', 'rewloy-for-woocommerce' ) . '</li>';
 		echo '<li>' . esc_html__( 'For each order update, the webhook sends the order\'s number, status, currency and total, signed with a secret only this shop and Rewloy have, and the billing e-mail once the order is processing or completed. Nothing else of the order (no names, addresses, phone numbers or items). Rewloy stores only the order number, its outcome and the time.', 'rewloy-for-woocommerce' ) . '</li>';
 		echo '<li>' . esc_html__( 'If you turn on the invitation, the billing e-mail of an order whose box was ticked is sent once, to open the card.', 'rewloy-for-woocommerce' ) . '</li>';
 		echo '<li>' . esc_html__( 'Nothing else, and no tracking. The My Account tab sends nothing.', 'rewloy-for-woocommerce' ) . '</li>';
 		echo '</ul>';
-		echo '<p class="description">' . esc_html__( 'Deleting this plugin removes its settings and its webhook from this site. It does not delete anything in Rewloy: the link and the cards stay until you delete them in the Rewloy panel.', 'rewloy-for-woocommerce' ) . '</p>';
+		echo '<p class="description">' . esc_html__( 'Deleting this plugin removes its settings, its key and its webhook from this site. It does not delete anything in Rewloy: the link, the key a connect code made and the cards stay until you delete them in the Rewloy panel (deleting the link revokes the key).', 'rewloy-for-woocommerce' ) . '</p>';
 	}
 
 	private function row( string $label, string $value ): void {
 		echo '<tr><th scope="row" style="width:14rem">' . esc_html( $label ) . '</th><td>' . esc_html( $value ) . '</td></tr>';
+	}
+
+	/**
+	 * What Rewloy says became of the last request the shop signed (`lastDelivery`), in the panel's words.
+	 *
+	 * @param mixed $delivery `{at, result}`, or null when none has come.
+	 */
+	private function last_delivery( mixed $delivery ): string {
+		if ( ! is_array( $delivery ) || ! is_string( $delivery['result'] ?? null ) ) {
+			return __( 'No signed request has come from the shop yet.', 'rewloy-for-woocommerce' );
+		}
+		return $this->when( $delivery['at'] ?? null ) . ' · ' . Messages::delivery_label( $delivery['result'] );
+	}
+
+	/**
+	 * The last request to the shop's address that was refused for its signature (`lastRefusal`); '' when there is none.
+	 *
+	 * @param mixed $refusal `{at, reason}`, or null.
+	 */
+	private function last_refusal( mixed $refusal ): string {
+		if ( ! is_array( $refusal ) || ! is_string( $refusal['reason'] ?? null ) ) {
+			return '';
+		}
+		return $this->when( $refusal['at'] ?? null ) . ' · ' . Messages::refusal_label( $refusal['reason'] );
+	}
+
+	/**
+	 * The key a connect code made for this link, as Rewloy lists it (`pluginKey`): its name and public prefix.
+	 *
+	 * @param mixed $key `{id, prefix, name}`, or null.
+	 */
+	private function plugin_key( mixed $key ): string {
+		if ( ! is_array( $key ) || ! is_string( $key['name'] ?? null ) || '' === $key['name'] ) {
+			return '';
+		}
+		$prefix = is_string( $key['prefix'] ?? null ) ? (string) preg_replace( '/[^A-Za-z0-9]/', '', $key['prefix'] ) : '';
+		return '' !== $prefix ? $key['name'] . ' (' . substr( $prefix, 0, 10 ) . '…)' : $key['name'];
 	}
 
 	private function webhook_status( string $status ): string {

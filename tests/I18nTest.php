@@ -127,6 +127,18 @@ final class I18nTest extends TestCase {
 		$this->assertSame( array( 'Bağla' ), $tr['Connect'] );
 	}
 
+	/** The labels of src/views/shops.ts (DELIVERY) and its "İmza tutmadı" badge, word for word. */
+	public function test_the_health_labels_are_the_panels_own_words(): void {
+		$tr = $this->po( self::DIR . '/rewloy-for-woocommerce-tr_TR.po' );
+		$this->assertSame( array( 'Kayıtlı siparişin tekrarı' ), $tr['Repeat of a recorded order'] );
+		$this->assertSame( array( 'Ödenmemiş sipariş (kaydedilmedi)' ), $tr['Unpaid order (not recorded)'] );
+		$this->assertSame( array( 'Sipariş numarası yok' ), $tr['No order number'] );
+		$this->assertSame( array( 'Okunamadı' ), $tr['Could not be read'] );
+		$this->assertSame( array( 'İmza tutmadı' ), $tr['Signature did not match'] );
+		$this->assertSame( array( 'Reddedilen son istek' ), $tr['Last refused request'] );
+		$this->assertSame( array( 'Mağazadan henüz imzalı bir istek gelmedi.' ), $tr['No signed request has come from the shop yet.'] );
+	}
+
 	public function test_the_header_is_turkish_with_its_plural_rule(): void {
 		$src = (string) file_get_contents( self::DIR . '/rewloy-for-woocommerce-tr_TR.po' );
 		$this->assertStringContainsString( '"Language: tr_TR\n"', $src );

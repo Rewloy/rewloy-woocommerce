@@ -219,4 +219,103 @@ final class ClientTest extends TestCase {
 		$this->assertSame( '9', $rows[0]['orderId'] );
 		$this->assertStringEndsWith( '/orders?limit=100', $this->requests[0]['url'] );
 	}
+
+	public function test_me_asks_who_the_key_is(): void {
+		$this->script( $this->meAnswer() );
+		$me = $this->client()->me();
+		$this->assertSame( 'https://app.rewloy.com/v1/me', $this->requests[0]['url'] );
+		$this->assertSame( 'GET', $this->requests[0]['args']['method'] );
+		$this->assertSame( 'Bearer ' . self::KEY, $this->requests[0]['args']['headers']['Authorization'] );
+		$this->assertSame( 'key', $me['kind'] );
+		$this->assertContains( 'shops.manage', $me['permissions'] );
+	}
+
+	public function test_connect_shop_sends_the_code_and_the_name_and_no_key(): void {
+		$this->script( $this->connectAnswer() );
+		$answer = Client::anonymous( 'https://app.rewloy.com', $this->transport(), static function ( float $s ): void {} )->connect_shop( self::CODE, 'Örnek Mağaza' );
+		$r      = $this->requests[0];
+		$this->assertSame( 'POST', $r['args']['method'] );
+		$this->assertSame( 'https://app.rewloy.com/v1/shops/connect', $r['url'] );
+		$this->assertArrayNotHasKey( 'Authorization', $r['args']['headers'] );
+		$this->assertArrayNotHasKey( 'Idempotency-Key', $r['args']['headers'] );
+		$this->assertSame( 'application/json', $r['args']['headers']['Content-Type'] );
+		$this->assertSame( array( 'token' => self::CODE, 'shopName' => 'Örnek Mağaza' ), json_decode( $r['args']['body'], true ) );
+		$this->assertSame( self::LINK, $answer['shop']['id'] );
+		$this->assertSame( self::PLUGIN_KEY, $answer['apiKey']['token'] );
+		$this->assertStringStartsWith( 'wc_', $answer['secret'] );
+	}
+
+	public function test_connect_shop_omits_an_empty_name_and_is_not_retried_even_though_the_code_is_the_credential(): void {
+		$this->script( $this->failure( 503, 'INTERNAL' ), $this->connectAnswer() );
+		try {
+			Client::anonymous( 'https://app.rewloy.com', $this->transport(), static function ( float $s ): void {} )->connect_shop( self::CODE );
+			$this->fail( 'expected an error' );
+		} catch ( ApiError $e ) {
+			$this->assertCount( 1, $this->requests, 'the code is spent by the first answer, which is shown once' );
+			$this->assertSame( array( 'token' => self::CODE ), json_decode( $this->requests[0]['args']['body'], true ) );
+		}
+	}
+
+	public function test_a_client_without_a_key_refuses_every_call_that_needs_one(): void {
+		$client = Client::anonymous( 'https://app.rewloy.com', $this->transport() );
+		foreach ( array(
+			fn() => $client->me(),
+			fn() => $client->list_programs(),
+			fn() => $client->get_shop( self::LINK ),
+			fn() => $client->create_shop( array() ),
+			fn() => $client->delete_shop( self::LINK ),
+			fn() => $client->issue_pass( array(), 'woo-0123456789-5' ),
+		) as $call ) {
+			try {
+				$call();
+				$this->fail( 'expected a LogicException' );
+			} catch ( \LogicException $e ) {
+				$this->assertStringContainsString( 'no API key', $e->getMessage() );
+			}
+		}
+		$this->assertSame( array(), $this->requests, 'nothing went out' );
+	}
+
+	public function test_an_anonymous_client_is_made_only_through_the_named_constructor(): void {
+		$this->expectException( \InvalidArgumentException::class );
+		new Client( self::KEY, 'https://app.rewloy.com', null, null, 10.0, true );
+	}
+
+	public function test_an_anonymous_client_still_needs_an_https_origin(): void {
+		$this->expectException( \InvalidArgumentException::class );
+		Client::anonymous( 'http://app.rewloy.com' );
+	}
+
+	public function test_the_code_is_in_no_message_and_not_in_debug_output(): void {
+		$client = Client::anonymous( 'https://app.rewloy.com', $this->transport(), static function ( float $s ): void {} );
+		$this->script( new \WP_Error( 'http_request_failed', 'boom' ) );
+		try {
+			$client->connect_shop( self::CODE );
+		} catch ( \Rewloy\WooCommerce\RewloyException $e ) {
+			$this->assertStringNotContainsString( 'ABCDEFGH', $e->getMessage() );
+			$this->assertStringNotContainsString( 'ABCDEFGH', (string) $e );
+		}
+		$this->assertStringNotContainsString( 'ABCDEFGH', print_r( $client->__debugInfo(), true ) );
+	}
+
+	public function test_issue_pass_reports_a_replay_and_the_orders_result(): void {
+		$card = array( 'serial' => 'ABCD-EFGH-JKLM', 'cardUrl' => 'https://rewloy.com/p/ABCD-EFGH-JKLM?k=k' );
+		$this->script(
+			$this->answer( 201, array( 'data' => $card + array( 'order' => array( 'shopId' => self::LINK, 'orderId' => '5', 'result' => 'resend', 'outcome' => null ) ) ), array( 'idempotent-replayed' => 'true' ) ),
+			$this->answer( 201, array( 'data' => $card ) ),
+			$this->answer( 201, array( 'data' => $card + array( 'order' => array( 'result' => 'something-new' ) ) ) ),
+			$this->answer( 201, array( 'data' => $card + array( 'order' => array( 'result' => 'waiting' ) ) ), array( 'idempotent-replayed' => 'false' ) )
+		);
+		$client = $this->client();
+		$a      = $client->issue_pass( array(), 'woo-0123456789-5' );
+		$this->assertTrue( $a['replayed'] );
+		$this->assertSame( 'resend', $a['order_result'] );
+		$b = $client->issue_pass( array(), 'woo-0123456789-5' );
+		$this->assertFalse( $b['replayed'] );
+		$this->assertSame( '', $b['order_result'], 'no order named, no result' );
+		$this->assertSame( '', $client->issue_pass( array(), 'woo-0123456789-5' )['order_result'], 'a result this plugin does not know is not acted on' );
+		$d = $client->issue_pass( array(), 'woo-0123456789-5' );
+		$this->assertFalse( $d['replayed'] );
+		$this->assertSame( 'waiting', $d['order_result'] );
+	}
 }

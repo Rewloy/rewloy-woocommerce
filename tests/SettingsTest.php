@@ -163,4 +163,42 @@ final class SettingsTest extends TestCase {
 		$this->assertTrue( $s['account_tab'] );
 		$this->assertSame( 'Örnek A.Ş.', $s['controller_name'] );
 	}
+
+	public function test_the_mask_of_a_test_environment_key_shows_its_prefix_after_rwk_test(): void {
+		$settings = new Settings();
+		$this->assertSame( 'rwk_test_0a1b2c3d4e••••••••', $settings->mask( 'rwk_test_0a1b2c3d4eSECRETPLUGINKEYSECRETPLUGINKEY' ) );
+		$this->assertSame( 'rwk_0a1b2c3d4e••••••••', $settings->mask( self::PLUGIN_KEY ) );
+		$this->assertSame( 'rwk_••••••••', $settings->mask( 'rwk_test_short' ) );
+	}
+
+	public function test_a_test_key_is_known_by_its_prefix(): void {
+		$settings = new Settings();
+		$this->assertFalse( $settings->is_test_key(), 'no key' );
+		$settings->save_api_key( self::KEY );
+		$this->assertFalse( $settings->is_test_key() );
+		$settings->save_api_key( 'rwk_test_0a1b2c3d4eSECRETPLUGINKEYSECRETPLUGINKEY' );
+		$this->assertTrue( $settings->is_test_key() );
+	}
+
+	public function test_sanitize_connect_code_accepts_the_shape_the_panel_makes_and_nothing_else(): void {
+		$settings = new Settings();
+		$this->assertSame( self::CODE, $settings->sanitize_connect_code( "  " . self::CODE . "\n" ) );
+		foreach ( array( '', 'rwc_', 'rwc_' . str_repeat( 'a', 42 ), 'rwc_' . str_repeat( 'a', 44 ), 'rwk_' . str_repeat( 'a', 43 ), 'rwc_' . str_repeat( 'a', 42 ) . '!', 'rwc_' . str_repeat( 'a', 42 ) . ' b', '<b>' . self::CODE ) as $bad ) {
+			$this->assertSame( '', $settings->sanitize_connect_code( $bad ), $bad );
+		}
+	}
+
+	public function test_how_the_shop_was_connected_is_one_of_two_things_or_nothing(): void {
+		$settings = new Settings();
+		$this->assertSame( '', $settings->get()['via'] );
+		foreach ( array( Settings::VIA_CODE, Settings::VIA_KEY ) as $via ) {
+			$settings->update( array( 'via' => $via ) );
+			$this->assertSame( $via, $settings->get()['via'] );
+		}
+		$this->options[ Settings::OPTION ]['via'] = 'carrier pigeon';
+		$this->assertSame( '', $settings->get()['via'] );
+		$settings->update( array( 'via' => Settings::VIA_CODE ) );
+		$settings->clear_connection();
+		$this->assertSame( '', $settings->get()['via'], 'a disconnected shop was connected no way' );
+	}
 }

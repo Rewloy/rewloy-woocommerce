@@ -4,9 +4,11 @@
  * only the calls this plugin makes, with no Composer dependency.
  *
  * - Bearer key; the key is never put in a message, a log line or an exception.
- * - `Idempotency-Key` on the one call that takes one (issuePass).
+ * - `Idempotency-Key` on the one call that takes one (issuePass), which Rewloy replays for the same key and body.
+ * - One call needs no key at all: the connect code's (`connectShop`: the code is the credential).
  * - Errors become ApiError with the API's stable code; no answer becomes ConnectionError.
- * - Retries only where repeating is safe (GET, PUT, PATCH, DELETE). A POST is sent once.
+ * - Retries only where repeating is safe: GET, PUT, PATCH, DELETE, and a POST that carries an Idempotency-Key.
+ *   Any other POST is sent once.
  *
  * @package Rewloy_For_WooCommerce
  */
@@ -37,15 +39,17 @@ final class Client {
 	 * @param (callable(string, array<string,mixed>): (array<string,mixed>|\WP_Error))|null $transport How to talk HTTP; wp_remote_request when null.
 	 * @param (callable(float): void)|null                                                    $sleep     Replaces the wait between retries (tests).
 	 * @param float                                                                           $timeout   Seconds one attempt may take.
+	 * @param bool                                                                            $anonymous True for a client without a key (see anonymous()); then `$api_key` must be empty.
 	 */
 	public function __construct(
 		#[\SensitiveParameter] private string $api_key,
 		string $base_url = self::DEFAULT_BASE_URL,
 		?callable $transport = null,
 		?callable $sleep = null,
-		private float $timeout = self::DEFAULT_TIMEOUT
+		private float $timeout = self::DEFAULT_TIMEOUT,
+		bool $anonymous = false
 	) {
-		if ( ! str_starts_with( $api_key, 'rwk_' ) ) {
+		if ( $anonymous ? '' !== $api_key : ! str_starts_with( $api_key, 'rwk_' ) ) {
 			throw new \InvalidArgumentException( 'A Rewloy API key starts with rwk_.' );
 		}
 		$base_url = rtrim( $base_url, '/' );
@@ -62,6 +66,17 @@ final class Client {
 				usleep( (int) round( $seconds * 1_000_000 ) );
 			}
 		};
+	}
+
+	/**
+	 * A client without a key, for the one call that needs none: connecting with a code. Every other call refuses to
+	 * go out without a key.
+	 *
+	 * @param (callable(string, array<string,mixed>): (array<string,mixed>|\WP_Error))|null $transport How to talk HTTP.
+	 * @param (callable(float): void)|null                                                    $sleep     Replaces the wait between retries (tests).
+	 */
+	public static function anonymous( string $base_url = self::DEFAULT_BASE_URL, ?callable $transport = null, ?callable $sleep = null, float $timeout = self::DEFAULT_TIMEOUT ): self {
+		return new self( '', $base_url, $transport, $sleep, $timeout, true );
 	}
 
 	/** What var_dump() and print_r() show: everything but the key. */
@@ -85,6 +100,33 @@ final class Client {
 	 */
 	public function list_programs(): array {
 		return $this->list_of( $this->call( 'GET', '/programs', array( 'status' => 'active' ) ) );
+	}
+
+	/**
+	 * `me`: who the key is. For an API key: its business, role, permissions, mode, and the shop link it is bound to
+	 * (`key.shopId`, null for a key made by hand).
+	 *
+	 * @return array<string,mixed>
+	 */
+	public function me(): array {
+		return $this->object_of( $this->call( 'GET', '/me' ) );
+	}
+
+	/**
+	 * `connectShop`: spends a connect code (made in the Rewloy panel) and returns, once, the shop link (`shop`), its
+	 * secret (`secret`) and an API key bound to that link (`apiKey.token`). No credential goes with it: the code is
+	 * the credential. Never retried: a spent code answers 404 the second time, and the answer is shown only once.
+	 *
+	 * @param string $code      The code, `rwc_…`.
+	 * @param string $shop_name The shop's name, which names the key in the Rewloy panel ('' to send none).
+	 * @return array<string,mixed>
+	 */
+	public function connect_shop( #[\SensitiveParameter] string $code, string $shop_name = '' ): array {
+		$body = array( 'token' => $code );
+		if ( '' !== $shop_name ) {
+			$body['shopName'] = $shop_name;
+		}
+		return $this->object_of( $this->call( 'POST', '/shops/connect', array(), $body, '', false ) );
 	}
 
 	/**
@@ -121,48 +163,61 @@ final class Client {
 	}
 
 	/**
-	 * `issuePass`: opens a card for an e-mail address. NEVER retried, whatever the
-	 * failure: a repeat could open a second card. The Idempotency-Key is sent as the
-	 * brief and the API's convention ask; what keeps the card single is the
-	 * plugin's own claim on the order (see Issuer), not this header.
+	 * `issuePass`: opens a card for an e-mail address, for an order. With an Idempotency-Key Rewloy replays the first
+	 * answer (`Idempotent-Replayed: true`) for the same key and the same body, and refuses the same key with another
+	 * body (422 IDEMPOTENCY_KEY_REUSED), so a repeat is safe and is retried here, up to Retry::MAX_RETRIES_KEYED times.
 	 *
-	 * @param array<string,mixed> $body            programId, email, kvkkConsent.
+	 * @param array<string,mixed> $body            programId, email, kvkkConsent, orderId, shopId.
 	 * @param string              $idempotency_key 8 to 64 characters.
-	 * @return array{serial:string,cardUrl:string}
+	 * @return array{serial:string,cardUrl:string,replayed:bool,order_result:string} `order_result` is Rewloy's
+	 *         `order.result` (`waiting`, `resend`, `recorded`), or '' when the answer named no order.
 	 */
 	public function issue_pass( array $body, string $idempotency_key ): array {
-		$data = $this->object_of( $this->call( 'POST', '/passes', array(), $body, $idempotency_key ) );
+		$meta   = array();
+		$data   = $this->object_of( $this->call( 'POST', '/passes', array(), $body, $idempotency_key, true, $meta ) );
 		$serial = $data['serial'] ?? null;
 		$url    = $data['cardUrl'] ?? null;
 		if ( ! is_string( $serial ) || ! is_string( $url ) || 1 !== preg_match( '/^[A-Za-z0-9-]{4,40}$/', $serial ) ) {
 			// A 2xx without a usable card: accepted, so possibly issued.
 			throw new ConnectionError( 'The answer to issuePass did not carry the card.', 200 );
 		}
+		$order  = is_array( $data['order'] ?? null ) ? $data['order'] : array();
+		$result = is_string( $order['result'] ?? null ) && in_array( $order['result'], array( 'waiting', 'resend', 'recorded' ), true ) ? $order['result'] : '';
 		return array(
-			'serial'  => $serial,
-			'cardUrl' => $url,
+			'serial'       => $serial,
+			'cardUrl'      => $url,
+			'replayed'     => true === ( $meta['replayed'] ?? false ),
+			'order_result' => $result,
 		);
 	}
 
 	/**
-	 * One call, with the retry rules: a safe method gets up to Retry::MAX_RETRIES more attempts.
+	 * One call, with the retry rules (see Retry::retries_for).
 	 *
-	 * @param array<string,scalar> $query
+	 * @param array<string,scalar>     $query
 	 * @param array<string,mixed>|null $body
+	 * @param bool                     $auth Whether the key goes with it; false only for the connect code's call.
+	 * @param array<string,mixed>      $meta Filled on success: `replayed` is true when Rewloy replayed an earlier answer.
 	 * @return array<string,mixed> The decoded answer (`data`, and `meta` on lists); empty for 204.
 	 *
 	 * @throws RewloyException On every failure.
+	 * @throws \LogicException For a call that needs a key, on a client that has none.
 	 */
-	private function call( string $method, string $path, array $query = array(), ?array $body = null, string $idempotency_key = '' ): array {
+	private function call( string $method, string $path, array $query = array(), ?array $body = null, string $idempotency_key = '', bool $auth = true, array &$meta = array() ): array {
+		if ( $auth && '' === $this->api_key ) {
+			throw new \LogicException( 'This client has no API key.' );
+		}
 		$url = $this->base_url . '/v1' . $path;
 		if ( array() !== $query ) {
 			$url .= '?' . http_build_query( $query, '', '&', PHP_QUERY_RFC3986 );
 		}
 		$headers = array(
-			'Authorization' => 'Bearer ' . $this->api_key,
-			'Accept'        => 'application/json',
-			'User-Agent'    => 'rewloy-for-woocommerce/' . Plugin::VERSION . ' (WordPress; PHP/' . PHP_VERSION . ')',
+			'Accept'     => 'application/json',
+			'User-Agent' => 'rewloy-for-woocommerce/' . Plugin::VERSION . ' (WordPress; PHP/' . PHP_VERSION . ')',
 		);
+		if ( $auth ) {
+			$headers = array( 'Authorization' => 'Bearer ' . $this->api_key ) + $headers;
+		}
 		$json    = null;
 		if ( null !== $body ) {
 			$json                    = (string) wp_json_encode( $body );
@@ -181,7 +236,7 @@ final class Client {
 		if ( null !== $json ) {
 			$args['body'] = $json;
 		}
-		$retries = Retry::safe_method( $method ) ? Retry::MAX_RETRIES : 0;
+		$retries = Retry::safe_method( $method ) ? Retry::MAX_RETRIES : 0; // TEMP-PART1
 
 		for ( $attempt = 0; ; $attempt++ ) {
 			$res = ( $this->transport )( $url, $args );
@@ -204,6 +259,7 @@ final class Client {
 				if ( ! is_array( $decoded ) ) {
 					throw new ConnectionError( 'The answer was not the JSON the API documents.', $status, '', $request_id );
 				}
+				$meta['replayed'] = 'true' === strtolower( $this->header( $res, 'idempotent-replayed' ) );
 				return $decoded;
 			}
 

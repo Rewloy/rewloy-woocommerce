@@ -18,6 +18,9 @@ final class Messages {
 	/** The outcomes Rewloy records for an order, in the panel's order. */
 	public const OUTCOMES = array( 'credited', 'unmatched', 'below', 'paused', 'currency' );
 
+	/** What Rewloy can say about the last signed request of a shop (`lastDelivery.result`): the five outcomes and four more. */
+	public const DELIVERY_RESULTS = array( 'credited', 'unmatched', 'below', 'paused', 'currency', 'duplicate', 'ignored', 'no_id', 'bad_body' );
+
 	/** The panel's label for a recorded outcome. */
 	public static function outcome_label( string $outcome ): string {
 		switch ( $outcome ) {
@@ -34,6 +37,30 @@ final class Messages {
 			default:
 				return $outcome;
 		}
+	}
+
+	/**
+	 * The panel's label for what became of the last signed request (`lastDelivery.result`): the outcomes of an order
+	 * and four things that are not one (a repeat, an unpaid order, no order number, an unreadable body).
+	 */
+	public static function delivery_label( string $result ): string {
+		switch ( $result ) {
+			case 'duplicate':
+				return __( 'Repeat of a recorded order', 'rewloy-for-woocommerce' );
+			case 'ignored':
+				return __( 'Unpaid order (not recorded)', 'rewloy-for-woocommerce' );
+			case 'no_id':
+				return __( 'No order number', 'rewloy-for-woocommerce' );
+			case 'bad_body':
+				return __( 'Could not be read', 'rewloy-for-woocommerce' );
+			default:
+				return self::outcome_label( $result );
+		}
+	}
+
+	/** The panel's label for why Rewloy refused a request to the shop's address (`lastRefusal.reason`). */
+	public static function refusal_label( string $reason ): string {
+		return 'bad_signature' === $reason ? __( 'Signature did not match', 'rewloy-for-woocommerce' ) : $reason;
 	}
 
 	/** What an outcome means, in the panel's words. */
@@ -115,7 +142,7 @@ final class Messages {
 				return __( 'Rewloy did not accept this API key. Check that it is complete and has not been revoked.', 'rewloy-for-woocommerce' );
 			case 'FORBIDDEN':
 			case 'OUT_OF_SCOPE':
-				return __( 'This API key is not allowed to do that. It needs the permissions to see cards and settings, to manage API keys and shop links, and to issue cards.', 'rewloy-for-woocommerce' );
+				return __( 'This API key is not allowed to do that. It needs the permissions to see cards, to see and manage shop links, and to issue cards; the E-ticaret role has exactly those.', 'rewloy-for-woocommerce' );
 			case 'PLAN_FEATURE_MISSING':
 				return __( 'Shop links are not in this business\'s Rewloy plan.', 'rewloy-for-woocommerce' );
 			case 'LIMIT':
@@ -127,7 +154,15 @@ final class Messages {
 			case 'SHOP_NOT_FOUND':
 				return __( 'This link no longer exists in Rewloy.', 'rewloy-for-woocommerce' );
 			case 'RATE_LIMITED':
-				return __( 'Rewloy is receiving too many requests from this key. Try again in a minute.', 'rewloy-for-woocommerce' );
+				return __( 'Rewloy is receiving too many requests from this key or address. Try again in a few minutes.', 'rewloy-for-woocommerce' );
+			case 'CONNECT_TOKEN_INVALID':
+				return __( 'Rewloy did not accept this code: it may have been used already, have lapsed (a code lasts 15 minutes) or have been withdrawn. Make a new one in the Rewloy panel: E-ticaret › Mağaza bağla › WooCommerce › "Rewloy eklentisiyle".', 'rewloy-for-woocommerce' );
+			case 'SHOP_PROGRAM_MISMATCH':
+				return __( 'This shop link belongs to another card than the one the invitation opens.', 'rewloy-for-woocommerce' );
+			case 'IDEMPOTENCY_KEY_REUSED':
+				return __( 'Rewloy already has a different request under this order\'s key.', 'rewloy-for-woocommerce' );
+			case 'TEST_LIMIT_REACHED':
+				return __( 'The Rewloy test environment is full. Reset it in the Rewloy panel.', 'rewloy-for-woocommerce' );
 			case 'READ_ONLY':
 			case 'VIEW_AS_READ_ONLY':
 				return __( 'This business\'s Rewloy account is read-only right now.', 'rewloy-for-woocommerce' );

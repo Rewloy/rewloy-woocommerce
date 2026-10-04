@@ -20,6 +20,10 @@ abstract class TestCase extends PhpUnitTestCase {
 	public const KEY = 'rwk_abcdefghijSECRETSECRETSECRET1234';
 	public const LINK = '0192a3b4-5c6d-7e8f-9a0b-1c2d3e4f5a6b';
 	public const PROGRAM = '0192aaaa-5c6d-7e8f-9a0b-1c2d3e4f5a6b';
+	/** A connect code, as the panel makes it: `rwc_` and 43 characters. */
+	public const CODE = 'rwc_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklm_-01';
+	/** The key a connect code makes (bound to the link). */
+	public const PLUGIN_KEY = 'rwk_0a1b2c3d4eSECRETPLUGINKEYSECRETPLUGINKEY';
 
 	/** @var array<string,mixed> */
 	protected array $options = array();
@@ -186,6 +190,71 @@ abstract class TestCase extends PhpUnitTestCase {
 	protected function factory( ?Client $client = null ): callable {
 		$client ??= $this->client();
 		return static fn( string $key = '' ) => $client;
+	}
+
+	/**
+	 * A factory that makes a client for the key it is asked for, or for the saved key, or KEY: so a request made with
+	 * the key a connect code returned carries that key (not always the same one, as factory() does).
+	 *
+	 * @return callable(string=): ?Client
+	 */
+	protected function keyedFactory( ?Settings $settings = null ): callable {
+		return function ( string $key = '' ) use ( $settings ): ?Client {
+			$saved = null === $settings ? '' : $settings->api_key();
+			return $this->client( '' !== $key ? $key : ( '' !== $saved ? $saved : self::KEY ) );
+		};
+	}
+
+	/** @return callable(): Client */
+	protected function anonymousFactory(): callable {
+		return fn(): Client => Client::anonymous( 'https://app.rewloy.com', $this->transport(), static function ( float $s ): void {} );
+	}
+
+	/** The answer of `me` for a key made by hand: what the plugin needs and nothing more, unless told otherwise. */
+	protected function meAnswer( ?array $permissions = null, ?string $shopId = null ): array {
+		return $this->answer(
+			200,
+			array(
+				'data' => array(
+					'kind'        => 'key',
+					'key'         => array( 'id' => self::LINK, 'name' => 'Mağaza', 'prefix' => 'abcdefghij', 'role' => 'E-ticaret', 'scope' => 'Tüm kartlar', 'expiresAt' => null, 'rateLimitPerMinute' => 600, 'shopId' => $shopId ),
+					'business'    => array( 'id' => self::PROGRAM, 'name' => 'Örnek' ),
+					'permissions' => $permissions ?? array( 'passes.issue', 'programs.read', 'shops.manage', 'shops.read' ),
+					'mode'        => 'live',
+				),
+			)
+		);
+	}
+
+	/** The answer of `connectShop`: the link, its secret, and the key bound to it. */
+	protected function connectAnswer( array $over = array(), array $key = array() ): array {
+		return $this->answer(
+			201,
+			array(
+				'data' => array_merge(
+					array(
+						'shop'   => array(
+							'id'             => self::LINK,
+							'platform'       => 'woocommerce',
+							'programId'      => self::PROGRAM,
+							'programName'    => 'Kahve Kartı',
+							'programType'    => 'stamp',
+							'currency'       => 'TRY',
+							'rule'           => 'amount',
+							'perAmountMinor' => 9950,
+							'step'           => 2,
+							'enabled'        => true,
+							'webhookUrl'     => 'https://app.rewloy.com/hooks/store/' . self::LINK,
+							'pluginKey'      => array( 'id' => '0192bbbb-5c6d-7e8f-9a0b-1c2d3e4f5a6b', 'prefix' => '0a1b2c3d4e', 'name' => 'WooCommerce · Örnek Mağaza' ),
+						),
+						'secret' => 'wc_SECRETSECRETSECRETSECRETSECRETSECRET',
+						'apiKey' => array_merge( array( 'id' => '0192bbbb-5c6d-7e8f-9a0b-1c2d3e4f5a6b', 'prefix' => '0a1b2c3d4e', 'name' => 'WooCommerce · Örnek Mağaza', 'role' => 'E-ticaret', 'token' => self::PLUGIN_KEY ), $key ),
+						'mode'   => 'live',
+					),
+					$over
+				),
+			)
+		);
 	}
 
 	/** A WooCommerce webhook as the plugin makes it: its delivery address names the link. */

@@ -21,15 +21,23 @@ final class Settings {
 	/** One row per order being invited: the lock that makes "once" atomic. */
 	public const CLAIM_PREFIX = 'rewloy_wc_claim_';
 
+	/** How the shop was connected: with a connect code (the plugin holds a key bound to its link) or with an API key. */
+	public const VIA_CODE = 'code';
+	public const VIA_KEY  = 'key';
+
+	/** The shape of a connect code the Rewloy panel makes: `rwc_` and 43 URL-safe characters. */
+	private const CODE_PATTERN = '/^rwc_[A-Za-z0-9_-]{43}$/';
+
 	/** Programme types a shop can fill (a visit, stamps, points or cashback). */
 	public const LINKABLE_TYPES = array( 'stamp', 'points', 'vip', 'cashback' );
 
 	/**
-	 * @return array{link_id:string,webhook_id:int,program_id:string,program_name:string,program_type:string,currency:string,join_url:string,rule:string,per_amount_minor:int,step:int,invite:bool,account_tab:bool,controller_name:string,controller_email:string}
+	 * @return array{link_id:string,via:string,webhook_id:int,program_id:string,program_name:string,program_type:string,currency:string,join_url:string,rule:string,per_amount_minor:int,step:int,invite:bool,account_tab:bool,controller_name:string,controller_email:string}
 	 */
 	public function defaults(): array {
 		return array(
 			'link_id'          => '',
+			'via'              => '',
 			'webhook_id'       => 0,
 			'program_id'       => '',
 			'program_name'     => '',
@@ -49,7 +57,7 @@ final class Settings {
 	/**
 	 * The saved settings over their defaults, each value of its own type.
 	 *
-	 * @return array{link_id:string,webhook_id:int,program_id:string,program_name:string,program_type:string,currency:string,join_url:string,rule:string,per_amount_minor:int,step:int,invite:bool,account_tab:bool,controller_name:string,controller_email:string}
+	 * @return array{link_id:string,via:string,webhook_id:int,program_id:string,program_name:string,program_type:string,currency:string,join_url:string,rule:string,per_amount_minor:int,step:int,invite:bool,account_tab:bool,controller_name:string,controller_email:string}
 	 */
 	public function get(): array {
 		$saved = get_option( self::OPTION, array() );
@@ -57,6 +65,7 @@ final class Settings {
 		$d     = $this->defaults();
 		return array(
 			'link_id'          => is_string( $saved['link_id'] ?? null ) ? $saved['link_id'] : $d['link_id'],
+			'via'              => in_array( $saved['via'] ?? '', array( self::VIA_CODE, self::VIA_KEY ), true ) ? (string) $saved['via'] : $d['via'],
 			'webhook_id'       => (int) ( $saved['webhook_id'] ?? $d['webhook_id'] ),
 			'program_id'       => is_string( $saved['program_id'] ?? null ) ? $saved['program_id'] : $d['program_id'],
 			'program_name'     => is_string( $saved['program_name'] ?? null ) ? $saved['program_name'] : $d['program_name'],
@@ -88,6 +97,7 @@ final class Settings {
 		$this->update(
 			array(
 				'link_id'          => '',
+				'via'              => '',
 				'webhook_id'       => 0,
 				'program_id'       => '',
 				'program_name'     => '',
@@ -144,7 +154,7 @@ final class Settings {
 	}
 
 	/**
-	 * What the screen may show of a key: `rwk_` and the 10 characters after it,
+	 * What the screen may show of a key: `rwk_` (or `rwk_test_`) and the 10 characters after it,
 	 * which Rewloy itself prints in its lists because they are not secret, then dots.
 	 * Never the rest. A key too short to have such a prefix shows only dots.
 	 */
@@ -152,9 +162,29 @@ final class Settings {
 		if ( '' === $key ) {
 			return '';
 		}
-		// The prefix only for a key long enough that 14 characters are a small part of it.
-		$shown = strlen( $key ) >= 32 && str_starts_with( $key, 'rwk_' ) ? substr( $key, 0, 14 ) : 'rwk_';
+		$head = self::key_head( $key );
+		// The prefix only for a key long enough that it is a small part of it.
+		$shown = strlen( $key ) >= 32 && str_starts_with( $key, 'rwk_' ) ? substr( $key, 0, strlen( $head ) + 10 ) : 'rwk_';
 		return $shown . '••••••••';
+	}
+
+	/** A test environment's key starts `rwk_test_`, a business's own `rwk_` (Rewloy's key format). */
+	private static function key_head( string $key ): string {
+		return str_starts_with( $key, 'rwk_test_' ) ? 'rwk_test_' : 'rwk_';
+	}
+
+	/** Does the key in use belong to Rewloy's test environment? Nothing in it reaches real customers. */
+	public function is_test_key(): bool {
+		return str_starts_with( $this->api_key(), 'rwk_test_' );
+	}
+
+	/**
+	 * A connect code as a person pasted it: trimmed, and only if it has the shape the panel makes (`rwc_` and 43
+	 * URL-safe characters). Anything else is ''.
+	 */
+	public function sanitize_connect_code( #[\SensitiveParameter] string $raw ): string {
+		$code = trim( $raw );
+		return 1 === preg_match( self::CODE_PATTERN, $code ) ? $code : '';
 	}
 
 	/**

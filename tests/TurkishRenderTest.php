@@ -50,4 +50,12 @@ final class TurkishRenderTest extends TestCase {
 			Messages::for_error( new ApiError( 'x', 403, 'PLAN_FEATURE_MISSING', 'req-1' ) )
 		);
 	}
+
+	public function test_the_health_labels_and_the_connect_errors_read_in_turkish(): void {
+		$this->assertSame( 'Karta işlendi', Messages::delivery_label( 'credited' ) );
+		$this->assertSame( 'Kayıtlı siparişin tekrarı', Messages::delivery_label( 'duplicate' ) );
+		$this->assertSame( 'Okunamadı', Messages::delivery_label( 'bad_body' ) );
+		$this->assertSame( 'İmza tutmadı', Messages::refusal_label( 'bad_signature' ) );
+		$this->assertStringStartsWith( 'Rewloy bu kodu kabul etmedi:', Messages::for_error( new ApiError( 'x', 404, 'CONNECT_TOKEN_INVALID', '' ) ) );
+	}
 }
