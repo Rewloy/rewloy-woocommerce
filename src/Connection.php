@@ -464,7 +464,7 @@ final class Connection {
 			} catch ( RewloyException $e ) {
 				// Already gone in Rewloy is what we wanted.
 				if ( ! ( $e instanceof ApiError && 'SHOP_NOT_FOUND' === $e->api_code ) ) {
-					return Result::error( Messages::for_error( $e ) );
+					return Result::error( $this->key_rejected( $e ) ? $this->key_gone_message() : Messages::for_error( $e ) );
 				}
 			}
 		}
@@ -501,15 +501,19 @@ final class Connection {
 	/**
 	 * What the screen shows when connected: the link as Rewloy has it, its last orders, the webhook.
 	 *
-	 * @return array{link:?array<string,mixed>,orders:list<array<string,mixed>>,error:string,webhook:array{exists:bool,status:string,failures:int,edit_url:string}}
+	 * `key_rejected` is true when Rewloy no longer accepts the key of a connect-code connection, which it revokes with
+	 * the link: the link was deleted in the Rewloy panel, and the screen then points at "forget the connection here".
+	 *
+	 * @return array{link:?array<string,mixed>,orders:list<array<string,mixed>>,error:string,key_rejected:bool,webhook:array{exists:bool,status:string,failures:int,edit_url:string}}
 	 */
 	public function health(): array {
 		$s      = $this->settings->get();
 		$out    = array(
-			'link'    => null,
-			'orders'  => array(),
-			'error'   => '',
-			'webhook' => $this->webhooks->health( $s['webhook_id'] ),
+			'link'         => null,
+			'orders'       => array(),
+			'error'        => '',
+			'key_rejected' => false,
+			'webhook'      => $this->webhooks->health( $s['webhook_id'] ),
 		);
 		$client = $this->client();
 		if ( '' === $s['link_id'] || null === $client ) {
@@ -519,9 +523,25 @@ final class Connection {
 			$out['link']   = $client->get_shop( $s['link_id'] );
 			$out['orders'] = $client->list_shop_orders( $s['link_id'], 10 );
 		} catch ( RewloyException $e ) {
-			$out['error'] = Messages::for_error( $e );
+			$out['key_rejected'] = $this->key_rejected( $e );
+			$out['error']        = $out['key_rejected'] ? $this->key_gone_message() : Messages::for_error( $e );
 		}
 		return $out;
+	}
+
+	/**
+	 * Does Rewloy refuse the key of a connect-code connection? That key is bound to the link and revoked with it, so the
+	 * likeliest reason is that the link was deleted in the Rewloy panel (a key made by hand has no such tie).
+	 */
+	private function key_rejected( RewloyException $e ): bool {
+		return $e instanceof ApiError
+			&& in_array( $e->api_code, array( 'INVALID_API_KEY', 'UNAUTHENTICATED' ), true )
+			&& Settings::VIA_CODE === $this->settings->get()['via'];
+	}
+
+	/** What to tell a person whose connect-code key Rewloy no longer accepts: the way out is on the same screen. */
+	private function key_gone_message(): string {
+		return __( 'Rewloy no longer accepts the key this site holds. A key made by a connect code is revoked together with its link, so the link was probably deleted in the Rewloy panel, and orders are no longer reaching it. Use "Forget the connection on this site only" below, then connect again with a new code.', 'rewloy-for-woocommerce' );
 	}
 
 	/**

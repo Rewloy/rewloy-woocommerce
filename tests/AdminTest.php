@@ -324,6 +324,27 @@ final class AdminTest extends TestCase {
 		$this->assertStringNotContainsString( 'SECRET', $html );
 	}
 
+	public function test_when_rewloy_refuses_a_code_connections_key_the_way_out_is_opened(): void {
+		$settings = $this->connected( array( 'via' => Settings::VIA_CODE ) );
+		$settings->save_api_key( self::PLUGIN_KEY );
+		$this->script( $this->failure( 401, 'INVALID_API_KEY' ) );
+		$html = $this->render( $this->admin( $settings ) );
+		$this->assertStringContainsString( 'deleted in the Rewloy panel', $html );
+		$this->assertMatchesRegularExpression( '/<details[^>]* open>\s*<summary>If Rewloy cannot be reached/', $html );
+	}
+
+	public function test_the_way_out_stays_closed_while_rewloy_answers(): void {
+		$settings = $this->connected();
+		$settings->save_api_key( self::KEY );
+		$this->script(
+			$this->answer( 200, array( 'data' => array( 'enabled' => true, 'orders' => array() ) ) ),
+			$this->answer( 200, array( 'data' => array() ) )
+		);
+		$html = $this->render( $this->admin( $settings ) );
+		$this->assertStringContainsString( '<summary>If Rewloy cannot be reached', $html );
+		$this->assertDoesNotMatchRegularExpression( '/<details[^>]* open>\s*<summary>If Rewloy cannot be reached/', $html );
+	}
+
 	public function test_the_connected_screen_shows_health_orders_and_outcomes_in_the_panels_words(): void {
 		$settings = $this->connected( array( 'account_tab' => true, 'controller_name' => 'Örnek A.Ş.' ) );
 		$settings->save_api_key( self::KEY );

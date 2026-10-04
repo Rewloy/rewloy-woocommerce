@@ -404,6 +404,44 @@ final class ConnectionTest extends TestCase {
 		$this->assertFalse( $h['webhook']['exists'], 'no webhook 41 exists in this test' );
 	}
 
+	/**
+	 * Found by running against the real Rewloy: a link deleted in the Rewloy panel revokes the key a connect code made,
+	 * and the screen then said "check that the key is complete", and so did the removal, which cannot work any more.
+	 */
+	public function test_a_code_connection_whose_key_rewloy_no_longer_accepts_says_the_link_was_probably_deleted(): void {
+		$settings = $this->connected( array( 'via' => Settings::VIA_CODE ) );
+		$settings->save_api_key( self::PLUGIN_KEY );
+		$this->script( $this->failure( 401, 'INVALID_API_KEY' ) );
+		$h = $this->keyedConnection( $settings )->health();
+		$this->assertTrue( $h['key_rejected'] );
+		$this->assertStringContainsString( 'deleted in the Rewloy panel', $h['error'] );
+		$this->assertStringContainsString( 'Forget the connection on this site only', $h['error'] );
+		$this->assertStringNotContainsString( 'Check that it is complete', $h['error'] );
+	}
+
+	public function test_removing_such_a_connection_points_to_forgetting_it_here_and_keeps_it_meanwhile(): void {
+		$settings = $this->connected( array( 'via' => Settings::VIA_CODE ) );
+		$settings->save_api_key( self::PLUGIN_KEY );
+		$hook = $this->makeWebhook();
+		$this->script( $this->failure( 401, 'INVALID_API_KEY' ) );
+		$r = $this->keyedConnection( $settings )->disconnect();
+		$this->assertFalse( $r->ok );
+		$this->assertStringContainsString( 'Forget the connection on this site only', $r->message );
+		$this->assertTrue( $settings->is_connected() );
+		$this->assertFalse( $hook->deleted );
+	}
+
+	public function test_a_key_made_by_hand_that_rewloy_refuses_keeps_the_plain_message(): void {
+		$settings = $this->connected( array( 'via' => Settings::VIA_KEY ) );
+		$settings->save_api_key( self::KEY );
+		$this->script( $this->failure( 401, 'INVALID_API_KEY' ), $this->failure( 401, 'INVALID_API_KEY' ) );
+		$conn = $this->keyedConnection( $settings );
+		$h    = $conn->health();
+		$this->assertFalse( $h['key_rejected'] );
+		$this->assertStringContainsString( 'did not accept this API key', $h['error'] );
+		$this->assertStringContainsString( 'did not accept this API key', $conn->disconnect()->message );
+	}
+
 	/* ------------------------------------------------------------------ the connect code */
 
 	private function programsOfTheKey(): array {

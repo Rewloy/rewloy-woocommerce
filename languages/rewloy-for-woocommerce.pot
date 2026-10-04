@@ -252,127 +252,127 @@ msgstr ""
 msgid "Remove the connection"
 msgstr ""
 
-#: src/Admin.php:374
+#: src/Admin.php:375
 msgid "If Rewloy cannot be reached"
 msgstr ""
 
-#: src/Admin.php:375
+#: src/Admin.php:376
 msgid "Forget the connection on this site only: the webhook is deleted here, but the link in Rewloy stays until you delete it in the Rewloy panel."
 msgstr ""
 
-#: src/Admin.php:378
+#: src/Admin.php:379
 msgid "Forget the connection on this site only"
 msgstr ""
 
-#: src/Admin.php:386
+#: src/Admin.php:387
 msgid "Last orders"
 msgstr ""
 
-#: src/Admin.php:388
+#: src/Admin.php:389
 msgid "No order has arrived yet. The first paid order will show here with its outcome. Unpaid orders are not recorded."
 msgstr ""
 
-#: src/Admin.php:391
+#: src/Admin.php:392
 msgid "Order"
 msgstr ""
 
-#: src/Admin.php:391
+#: src/Admin.php:392
 msgid "Outcome"
 msgstr ""
 
-#: src/Admin.php:391
+#: src/Admin.php:392
 msgid "Time"
 msgstr ""
 
-#: src/Admin.php:402
+#: src/Admin.php:403
 msgid "On your shop"
 msgstr ""
 
-#: src/Admin.php:405
+#: src/Admin.php:406
 msgid "Invitation at checkout"
 msgstr ""
 
-#: src/Admin.php:406
+#: src/Admin.php:407
 msgid "Show an unticked box at checkout that invites the buyer to a loyalty card"
 msgstr ""
 
-#: src/Admin.php:407
+#: src/Admin.php:408
 msgid "When the order is paid and the box was ticked, a card is opened once for the billing e-mail and its link is e-mailed to the buyer. Only the e-mail address is sent to Rewloy. Works on the classic checkout and, from WooCommerce 8.9, on the block checkout."
 msgstr ""
 
-#: src/Admin.php:408
+#: src/Admin.php:409
 msgid "Data controller"
 msgstr ""
 
-#: src/Admin.php:410
+#: src/Admin.php:411
 msgid "Contact e-mail"
 msgstr ""
 
-#: src/Admin.php:410
+#: src/Admin.php:411
 msgid "Contact e-mail (optional)"
 msgstr ""
 
-#: src/Admin.php:411
+#: src/Admin.php:412
 msgid "Named in the notice beside the checkout box and in the card e-mail: the business that answers for the buyer's data. Your legal name, if you have one."
 msgstr ""
 
-#: src/Admin.php:412
+#: src/Admin.php:413
 msgid "My Account tab"
 msgstr ""
 
-#: src/Admin.php:413
+#: src/Admin.php:414
 msgid "Add a \"My loyalty card\" tab to My Account"
 msgstr ""
 
-#: src/Admin.php:414
+#: src/Admin.php:415
 msgid "The tab does not show card data. WooCommerce does not verify that an account's e-mail is the person's own, so showing a card by e-mail would let anyone who registers with someone else's address see their card. The tab sends the customer to Rewloy Cüzdan, where they prove their address with a code, and shows your join link. It makes no call to Rewloy."
 msgstr ""
 
-#: src/Admin.php:416
+#: src/Admin.php:417
 msgid "Save"
 msgstr ""
 
-#: src/Admin.php:421
+#: src/Admin.php:422
 msgid "What goes to Rewloy"
 msgstr ""
 
-#: src/Admin.php:422
+#: src/Admin.php:423
 msgid "To connect with a code: the code and this site's title, which names the key in Rewloy's list of keys. To manage the connection afterwards: the key that came back (or your own API key), and the card and rule when you choose them."
 msgstr ""
 
-#: src/Admin.php:423
+#: src/Admin.php:424
 msgid "For each order update, the webhook sends the order's number, status, currency and total, signed with a secret only this shop and Rewloy have, and the billing e-mail once the order is processing or completed. Nothing else of the order (no names, addresses, phone numbers or items). Rewloy stores only the order number, its outcome and the time."
 msgstr ""
 
-#: src/Admin.php:424
+#: src/Admin.php:425
 msgid "If you turn on the invitation, the billing e-mail of an order whose box was ticked is sent once, to open the card."
 msgstr ""
 
-#: src/Admin.php:425
+#: src/Admin.php:426
 msgid "Nothing else, and no tracking. The My Account tab sends nothing."
 msgstr ""
 
-#: src/Admin.php:427
+#: src/Admin.php:428
 msgid "Deleting this plugin removes its settings, its key and its webhook from this site. It does not delete anything in Rewloy: the link, the key a connect code made and the cards stay until you delete them in the Rewloy panel (deleting the link revokes the key)."
 msgstr ""
 
-#: src/Admin.php:441
+#: src/Admin.php:442
 msgid "No signed request has come from the shop yet."
 msgstr ""
 
-#: src/Admin.php:474
+#: src/Admin.php:475
 msgid "active"
 msgstr ""
 
-#: src/Admin.php:476
+#: src/Admin.php:477
 msgid "paused"
 msgstr ""
 
-#: src/Admin.php:478
+#: src/Admin.php:479
 msgid "disabled"
 msgstr ""
 
-#: src/Admin.php:487 src/Admin.php:491
+#: src/Admin.php:488 src/Admin.php:492
 msgid "none yet"
 msgstr ""
 
@@ -562,86 +562,90 @@ msgstr ""
 msgid "The webhook is active again."
 msgstr ""
 
-#: src/Issuer.php:197
+#: src/Connection.php:544
+msgid "Rewloy no longer accepts the key this site holds. A key made by a connect code is revoked together with its link, so the link was probably deleted in the Rewloy panel, and orders are no longer reaching it. Use \"Forget the connection on this site only\" below, then connect again with a new code."
+msgstr ""
+
+#: src/Issuer.php:217
 msgid "Rewloy: no card was opened: the order has no valid billing e-mail."
 msgstr ""
 
-#: src/Issuer.php:206
+#: src/Issuer.php:226
 msgid "Rewloy: no new card was opened: another order of this e-mail address is inviting it or has invited it, and one e-mail gets one card from this shop."
 msgstr ""
 
 #. translators: %s: an order number.
-#: src/Issuer.php:224
+#: src/Issuer.php:244
 #, php-format
 msgid "Rewloy: no new card was opened: order #%s already invited this e-mail address, and one e-mail gets one card from this shop."
 msgstr ""
 
-#: src/Issuer.php:233
+#: src/Issuer.php:253
 msgid "Rewloy: no card was opened: there is no API key."
 msgstr ""
 
 #. translators: %s: why Rewloy refused.
-#: src/Issuer.php:284
+#: src/Issuer.php:304
 #, php-format
 msgid "Rewloy: no card was opened. %s"
 msgstr ""
 
-#: src/Issuer.php:352
+#: src/Issuer.php:372
 msgid "Rewloy: the first request for this order is older than six days, and Rewloy no longer replays it, so asking again could open a second card. Look for this customer by e-mail in the Rewloy panel."
 msgstr ""
 
-#: src/Issuer.php:354
+#: src/Issuer.php:374
 msgid "Rewloy: the order's e-mail address or the connection changed since the first request, so the same request cannot be repeated: Rewloy would refuse it, or open a second card. Look for this customer by e-mail in the Rewloy panel."
 msgstr ""
 
-#: src/Issuer.php:356
+#: src/Issuer.php:376
 msgid "Rewloy: this order has no record of its first request, so asking again could open a second card. Look for this customer by e-mail in the Rewloy panel."
 msgstr ""
 
-#: src/Issuer.php:374
+#: src/Issuer.php:394
 msgid "Rewloy: no clear answer came, so the card may or may not have been opened. The same request is repeated automatically, a few times over the next hours: Rewloy answers a repeat with the card it already opened, so a second one cannot be opened."
 msgstr ""
 
-#: src/Issuer.php:375
+#: src/Issuer.php:395
 msgid "Rewloy: no clear answer came, so the card may or may not have been opened. Use \"Rewloy: try opening the card again\" on this order: it repeats the same request, and Rewloy answers a repeat with the card it already opened. Or look for this customer by e-mail in the Rewloy panel."
 msgstr ""
 
 #. translators: %s: the card's serial number.
-#: src/Issuer.php:393
+#: src/Issuer.php:413
 #, php-format
 msgid "Rewloy: card opened (%s). Its link was e-mailed to the customer."
 msgstr ""
 
 #. translators: %s: the card's serial number.
-#: src/Issuer.php:395
+#: src/Issuer.php:415
 #, php-format
 msgid "Rewloy: card opened (%s), but the e-mail with its link could not be sent. The link is private and is not kept here; find the card in the Rewloy panel."
 msgstr ""
 
-#: src/Issuer.php:397
+#: src/Issuer.php:417
 msgid "Rewloy answered with the card an earlier request of this order had opened."
 msgstr ""
 
-#: src/Issuer.php:400
+#: src/Issuer.php:420
 msgid "The order had reached Rewloy before the card existed, so it was queued to be sent again; it counts toward the card once that delivery arrives."
 msgstr ""
 
-#: src/Issuer.php:402
+#: src/Issuer.php:422
 msgid "The order had reached Rewloy before the card existed, and it could not be sent again because the webhook is missing or not active. Turn the webhook on and save the order again within seven days, or the order will not count toward the card."
 msgstr ""
 
-#: src/Issuer.php:447
+#: src/Issuer.php:467
 msgid "Rewloy: try opening the card again"
 msgstr ""
 
 #. translators: %s: the shop's name.
-#: src/Issuer.php:596
+#: src/Issuer.php:616
 #, php-format
 msgid "Your %s loyalty card"
 msgstr ""
 
 #. translators: 1: order number, 2: shop name, 3: card link, 4: data controller's name, 5: privacy notice link.
-#: src/Issuer.php:599
+#: src/Issuer.php:619
 #, php-format
 msgid ""
 "Hello,\n"

@@ -371,7 +371,8 @@ final class Admin {
 		wp_nonce_field( 'rewloy_wc_disconnect' );
 		submit_button( __( 'Remove the connection', 'rewloy-for-woocommerce' ), 'delete', 'submit', false );
 		echo '</form>';
-		echo '<details style="margin-top:1em"><summary>' . esc_html__( 'If Rewloy cannot be reached', 'rewloy-for-woocommerce' ) . '</summary>';
+		// Open when Rewloy refuses this site's key: then the removal above cannot work, and this is the way out.
+		echo '<details style="margin-top:1em"' . ( $health['key_rejected'] ? ' open' : '' ) . '><summary>' . esc_html__( 'If Rewloy cannot be reached', 'rewloy-for-woocommerce' ) . '</summary>';
 		echo '<p class="description">' . esc_html__( 'Forget the connection on this site only: the webhook is deleted here, but the link in Rewloy stays until you delete it in the Rewloy panel.', 'rewloy-for-woocommerce' ) . '</p>';
 		$this->form_open( 'disconnect' );
 		echo '<input type="hidden" name="local_only" value="1" />';
