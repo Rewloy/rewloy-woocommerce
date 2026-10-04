@@ -3,7 +3,7 @@
 **WooCommerce mağazanızın siparişleri Rewloy sadakat kartlarını doldursun.**
 
 > **Durum: önizleme (0.x): yayımlanmadı.** Eklentinin henüz yayımlanmış bir sürümü
-> yok; WordPress.org dizininde de değil. Kod burada. **0.2.0** PHPUnit'le denendi; 0.1.0
+> yok; WordPress.org dizininde de değil. Kod burada. **0.2.1** PHPUnit'le denendi; 0.1.0
 > ayrıca gerçek bir WordPress 7.1 + WooCommerce 11.1'de sahte bir Rewloy API'siyle
 > ([docs/VERIFIED.md](docs/VERIFIED.md)). Gerçek Rewloy'a karşı henüz denenmedi.
 > WooCommerce mağazanızı Rewloy'a **bugün eklentisiz de bağlayabilirsiniz**; yolu aşağıda.
@@ -202,7 +202,7 @@ sipariş, sonucuyla birlikte panelde bağlantının kendi sayfasında görünür
 **Let your WooCommerce shop's orders fill Rewloy loyalty cards.**
 
 **Status: preview (0.x): not published.** There is no release yet, and it is not on
-WordPress.org. The code is here. **0.2.0** has been tested with PHPUnit; 0.1.0 was also run on
+WordPress.org. The code is here. **0.2.1** has been tested with PHPUnit; 0.1.0 was also run on
 a real WordPress 7.1 and WooCommerce 11.1 against a local fake of the Rewloy API
 ([docs/VERIFIED.md](docs/VERIFIED.md)). Neither has been run against the real Rewloy.
 

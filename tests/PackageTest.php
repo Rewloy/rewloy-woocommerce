@@ -32,7 +32,7 @@ final class PackageTest extends TestCase {
 		$cmd  = escapeshellarg( $root . '/bin/build-zip' ) . ' ' . escapeshellarg( $this->out ) . ' 2>&1';
 		exec( $cmd, $lines, $code );
 		$this->assertSame( 0, $code, implode( "\n", $lines ) );
-		$zip = $this->out . '/rewloy-for-woocommerce-0.2.0.zip';
+		$zip = $this->out . '/rewloy-for-woocommerce-' . \Rewloy\WooCommerce\Plugin::VERSION . '.zip';
 		$this->assertFileExists( $zip );
 		return array_values( array_filter( explode( "\n", (string) shell_exec( 'unzip -Z1 ' . escapeshellarg( $zip ) ) ) ) );
 	}

@@ -3,7 +3,7 @@
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: Rewloy for WooCommerce 0.2.0\n"
+"Project-Id-Version: Rewloy for WooCommerce 0.2.1\n"
 "Report-Msgid-Bugs-To: https://github.com/Rewloy/rewloy-woocommerce/issues\n"
 "Language: \n"
 "MIME-Version: 1.0\n"
