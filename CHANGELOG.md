@@ -6,6 +6,28 @@ https://rewloy.com/gelistiriciler/degisiklikler
 This plugin's releases. The API's own changes are listed at the link above.
 Every decision and its reason: [docs/DECISIONS.md](docs/DECISIONS.md).
 
+## 0.2.2 (4 Oct 2026)
+
+Panelin mağaza formuyla aynı: bağlantı ekranı her kartı damga kartı saymaz.
+
+As in the panel's shop form: the connect screen no longer treats every card as a stamp card.
+
+- The card list names each card's type and the screen says what an order does for it:
+  stamp and points cards follow the rule; a VIP card counts one visit per paid order; a
+  cashback card applies its own rate to the order total (`config.cashbackRate` of
+  `GET /v1/programs`; with an example on a 400 order, and without a number when Rewloy
+  does not list the rate). No rule is needed for VIP or cashback.
+- The rule fields (per order or per amount, amount, how many) apply to stamp and points
+  cards only: they are labelled so, and are not shown at all when no stamp or points card
+  can be chosen. No script is involved; what was already sent for VIP and cashback cards
+  is unchanged (the plugin sends no rule for them).
+- For a cashback card the outcome "Below the threshold" says the cashback came to nothing
+  (a cashback card has no threshold). `readme.txt` lists VIP and cashback beside stamps and
+  points and says gift cards, coupons and discount cards cannot be linked to a shop.
+- Turkish for every new string; `.pot`, `.po` and `.mo` rebuilt.
+- No change to how orders are credited or to anything sent to Rewloy.
+- 304 PHPUnit tests (9 new); PHPStan level 8 and `bin/lint` clean.
+
 ## 0.2.1 (4 Oct 2026)
 
 - WordPress Plugin Check: request input is unslashed and sanitised in one step, an exception's text is marked as escaped where it is shown (Admin and the order notes escape it on output), the short description fits 150 characters, and the earlier-invitation lookup skips the order itself in its loop instead of with `exclude`, and the bundled Turkish translation keeps its `load_plugin_textdomain` with the reason. No behaviour changes.

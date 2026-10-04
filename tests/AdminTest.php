@@ -316,6 +316,80 @@ final class AdminTest extends TestCase {
 		$this->assertStringContainsString( 'name="rule" value="order" checked', $html );
 	}
 
+	/** @return array<string,mixed> A programme as GET /v1/programs lists it. */
+	private function listed( string $id, string $type, string $name, array $config = array() ): array {
+		return array( 'id' => $id, 'type' => $type, 'name' => $name, 'status' => 'active', 'joinUrl' => null, 'config' => $config );
+	}
+
+	public function test_the_connect_screen_names_each_cards_type_and_says_what_an_order_does_for_it(): void {
+		$this->settings->save_api_key( self::KEY );
+		$this->script(
+			$this->answer(
+				200,
+				array(
+					'data' => array(
+						$this->listed( self::PROGRAM, 'stamp', 'Kahve Kartı' ),
+						$this->listed( '0192bbbb-5c6d-7e8f-9a0b-1c2d3e4f5a6b', 'vip', 'Üyelik' ),
+						$this->listed( '0192cccc-5c6d-7e8f-9a0b-1c2d3e4f5a6b', 'cashback', 'İade Kartı', array( 'cashbackRate' => 5, 'currency' => 'TRY' ) ),
+						$this->listed( '0192dddd-5c6d-7e8f-9a0b-1c2d3e4f5a6b', 'giftcard', 'Hediye' ),
+					),
+				)
+			)
+		);
+		$html = html_entity_decode( $this->render( $this->admin() ), ENT_QUOTES );
+		$this->assertStringContainsString( 'Kahve Kartı (Stamp card)', $html );
+		$this->assertStringContainsString( 'Üyelik (VIP card)', $html );
+		$this->assertStringContainsString( 'İade Kartı (Cashback card)', $html );
+		$this->assertStringNotContainsString( 'Hediye', $html, 'a gift card cannot be linked to a shop' );
+		$this->assertStringContainsString( 'Stamp and points cards: the rule below', $html );
+		$this->assertStringContainsString( 'VIP cards: every paid order counts as one visit', $html );
+		$this->assertStringContainsString( 'Cashback card "İade Kartı": 5% of every paid order\'s total is added to the card\'s balance', $html );
+		$this->assertStringContainsString( 'an order of 400 TRY adds 20 TRY', $html );
+		$this->assertStringContainsString( 'Rule (stamp and points cards only)', $html );
+		$this->assertStringContainsString( 'name="rule" value="order" checked', $html, 'a stamp card is in the list, so the rule fields stay' );
+		$this->assertStringContainsString( 'name="step"', $html );
+	}
+
+	public function test_a_cashback_card_without_a_listed_rate_is_described_without_a_number(): void {
+		$this->settings->save_api_key( self::KEY );
+		$this->script( $this->answer( 200, array( 'data' => array( $this->listed( self::PROGRAM, 'cashback', 'İade', array( 'cashbackRate' => 'high' ) ), $this->listed( '0192bbbb-5c6d-7e8f-9a0b-1c2d3e4f5a6b', 'points', 'Puan' ) ) ) ) );
+		$html = html_entity_decode( $this->render( $this->admin() ), ENT_QUOTES );
+		$this->assertStringContainsString( 'Cashback card "İade": the card\'s own rate is applied to the total of every paid order', $html );
+		$this->assertStringNotContainsString( 'For example, an order of', $html );
+		$this->assertStringNotContainsString( '%', $html );
+	}
+
+	public function test_with_only_vip_and_cashback_cards_the_rule_fields_are_not_shown(): void {
+		$this->settings->save_api_key( self::KEY );
+		$this->script( $this->answer( 200, array( 'data' => array( $this->listed( self::PROGRAM, 'vip', 'Üyelik' ), $this->listed( '0192cccc-5c6d-7e8f-9a0b-1c2d3e4f5a6b', 'cashback', 'İade', array( 'cashbackRate' => 7.5 ) ) ) ) ) );
+		$html = html_entity_decode( $this->render( $this->admin() ), ENT_QUOTES );
+		$this->assertStringContainsString( 'NONCE-rewloy_wc_connect', $html );
+		$this->assertStringContainsString( 'name="program_id"', $html );
+		$this->assertStringContainsString( 'VIP cards:', $html );
+		$this->assertStringContainsString( '7,50% of every paid order', $html );
+		$this->assertStringNotContainsString( 'Stamp and points cards: the rule below', $html );
+		$this->assertStringNotContainsString( 'name="rule"', $html );
+		$this->assertStringNotContainsString( 'name="step"', $html );
+		$this->assertStringNotContainsString( 'name="per_amount"', $html );
+		$this->assertStringContainsString( 'Connecting creates the link in Rewloy', $html, 'the form is still closed properly' );
+		$this->assertSame( substr_count( $html, '<form' ), substr_count( $html, '</form>' ) );
+	}
+
+	public function test_the_connected_screen_explains_below_for_a_cashback_card_without_a_threshold(): void {
+		$settings = $this->connected( array( 'program_type' => 'cashback' ) );
+		$settings->save_api_key( self::KEY );
+		$this->makeWebhook( 41, null, 'active', 0 );
+		$this->script(
+			$this->answer( 200, array( 'data' => array( 'enabled' => true, 'orders' => array( 'credited' => 1, 'unmatched' => 0, 'below' => 2, 'paused' => 0, 'currency' => 0 ) ) ) ),
+			$this->answer( 200, array( 'data' => array() ) )
+		);
+		$html = $this->render( $this->admin( $settings ) );
+		$this->assertStringContainsString( 'The cashback on the order came to nothing', $html );
+		$this->assertStringNotContainsString( 'did not reach the rule', $html );
+		$this->assertStringContainsString( 'Cashback card', $html );
+		$this->assertStringContainsString( 'cashback rate is applied to the order total', $html );
+	}
+
 	public function test_a_refused_key_on_the_connect_step_is_shown_as_an_error(): void {
 		$this->settings->save_api_key( self::KEY );
 		$this->script( $this->failure( 401, 'INVALID_API_KEY' ) );

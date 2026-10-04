@@ -156,6 +156,29 @@ final class ConnectionTest extends TestCase {
 		$this->assertSame( '', $list[1]['join_url'], 'a join link off rewloy.com is not kept' );
 	}
 
+	public function test_programs_carries_a_cashback_cards_own_rate_and_currency_only_when_listed_sensibly(): void {
+		$row = static fn( string $id, string $type, array $config ): array => array( 'id' => $id, 'type' => $type, 'name' => $type, 'status' => 'active', 'joinUrl' => null, 'config' => $config );
+		$this->script(
+			$this->answer(
+				200,
+				array(
+					'data' => array(
+						$row( '0192aaaa-5c6d-7e8f-9a0b-1c2d3e4f5a6b', 'cashback', array( 'cashbackRate' => 5, 'currency' => 'TRY' ) ),
+						$row( '0192bbbb-5c6d-7e8f-9a0b-1c2d3e4f5a6b', 'cashback', array( 'cashbackRate' => 2.5, 'currency' => 'try' ) ),
+						$row( '0192cccc-5c6d-7e8f-9a0b-1c2d3e4f5a6b', 'cashback', array( 'cashbackRate' => '5' ) ),
+						$row( '0192dddd-5c6d-7e8f-9a0b-1c2d3e4f5a6b', 'cashback', array( 'cashbackRate' => 500 ) ),
+						$row( '0192eeee-5c6d-7e8f-9a0b-1c2d3e4f5a6b', 'cashback', array() ),
+						array( 'id' => '0192ffff-5c6d-7e8f-9a0b-1c2d3e4f5a6b', 'type' => 'cashback', 'name' => 'no config', 'status' => 'active', 'joinUrl' => null ),
+						$row( '0192aabb-5c6d-7e8f-9a0b-1c2d3e4f5a6b', 'stamp', array( 'cashbackRate' => 5 ) ),
+					),
+				)
+			)
+		);
+		$list = $this->connection()->programs();
+		$this->assertSame( array( 5.0, 2.5, null, null, null, null, null ), array_column( $list, 'cashback_rate' ) );
+		$this->assertSame( array( 'TRY', '', '', '', '', '', '' ), array_column( $list, 'currency' ) );
+	}
+
 	public function test_connect_creates_the_link_then_the_webhook_and_stores_both_ids(): void {
 		$settings = new Settings();
 		$this->script( $this->programs(), $this->shopAnswer() );

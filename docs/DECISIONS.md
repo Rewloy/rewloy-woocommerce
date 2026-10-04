@@ -508,6 +508,20 @@ message: it has no tie to the link, and a refusal there may be anything. Nothing
 automatically: the same refusal also fits a key revoked on its own while the link stays, and then
 the person must delete the link in the panel.
 
+**D36. The connect screen is type-aware (0.2.2).** The platform credits stamp and points by the
+link's rule, a VIP card as one visit per paid order and a cashback card at the card's own rate
+(`config.cashbackRate`, default 5; no separate rule), and refuses gift cards, vouchers and discount
+cards. The Rewloy panel's shop form says so per card; the plugin's did not: it showed the rule
+fields for every card. `programs()` now carries each card's `cashback_rate` (from the `config` that
+`GET /v1/programs` returns; null when absent or not a number in 1 to 100) and `currency`. The screen
+lists a note per type present (a cashback note per cashback card, with the rate and an example on a
+400 order when the rate is listed, without a number when it is not), and shows the rule fields only
+when a stamp or points card is among the choices, labelled "stamp and points cards only". It is plain
+PHP: the plugin enqueues no admin script, and a type-dependent show/hide would need one; the notes
+and the labels say the same without it. Nothing sent to Rewloy changed (`connect_locked` already
+sent no rule for VIP and cashback). The `below` outcome for a cashback card says the cashback came
+to nothing, since it has no threshold.
+
 **What the platform could still add** (for the next brief): `listShopOrders` filterable by
 `orderId` (or an `order` in `getPass`), so the plugin could check an `unknown` order against
 Rewloy before repeating it and not only trust the key; a way to read a connect answer again

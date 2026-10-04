@@ -51,6 +51,19 @@ final class TurkishRenderTest extends TestCase {
 		);
 	}
 
+	public function test_what_an_order_does_for_each_card_type_reads_in_the_panels_turkish(): void {
+		Functions\when( 'number_format_i18n' )->alias( static fn( $n, $d = 0 ) => number_format( (float) $n, (int) $d, ',', '.' ) );
+		$this->assertSame( 'VIP kartı: her ödenmiş sipariş bir ziyaret sayılır ve kartın seviyesine işler. Ayrı bir kural gerekmez.', Messages::vip_note() );
+		$this->assertSame( 'Damga ve puan kartı: siparişin ne eklediğini aşağıdaki kural belirler.', Messages::stamp_points_note() );
+		$this->assertSame(
+			'Cashback kartı "İade": her ödenmiş siparişin tutarı üzerinden %5 oranında iade kartın bakiyesine eklenir (kartın kendi oranı; Rewloy panelinde kartın ayarlarından değiştirilir). Örneğin 400 TRY\'lik siparişte 20 TRY eklenir. Ayrı bir kural gerekmez.',
+			Messages::cashback_note( 'İade', 5.0, 'TRY' )
+		);
+		$this->assertStringContainsString( 'oranı Rewloy panelinde kartın ayarlarından değiştirirsiniz', Messages::cashback_note( 'İade', null, '' ) );
+		$this->assertSame( 'Siparişin cashback tutarı sıfıra düştü; eklenecek bir şey çıkmadı.', Messages::outcome_why( 'below', 'cashback' ) );
+		$this->assertSame( 'Tutar kuralın eşiğine ulaşmadı; eklenecek bir şey çıkmadı.', Messages::outcome_why( 'below', 'stamp' ) );
+	}
+
 	public function test_the_health_labels_and_the_connect_errors_read_in_turkish(): void {
 		$this->assertSame( 'Karta işlendi', Messages::delivery_label( 'credited' ) );
 		$this->assertSame( 'Kayıtlı siparişin tekrarı', Messages::delivery_label( 'duplicate' ) );

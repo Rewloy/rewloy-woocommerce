@@ -44,4 +44,28 @@ final class MessagesTest extends TestCase {
 	public function test_a_lost_connection_is_not_an_api_code(): void {
 		$this->assertStringContainsString( 'could not be reached', Messages::for_error( new ConnectionError( 'boom' ) ) );
 	}
+
+	public function test_a_card_is_never_called_a_stamp_card_unless_it_is_one(): void {
+		$this->assertSame( 'Stamp card', Messages::type_label( 'stamp' ) );
+		$this->assertSame( 'Points card', Messages::type_label( 'points' ) );
+		$this->assertSame( 'VIP card', Messages::type_label( 'vip' ) );
+		$this->assertSame( 'Cashback card', Messages::type_label( 'cashback' ) );
+		$this->assertSame( 'The amount did not reach the rule\'s threshold; nothing was added.', Messages::outcome_why( 'below' ) );
+		$this->assertSame( 'The amount did not reach the rule\'s threshold; nothing was added.', Messages::outcome_why( 'below', 'points' ) );
+		$this->assertSame( 'The cashback on the order came to nothing; nothing was added.', Messages::outcome_why( 'below', 'cashback' ) );
+		$this->assertSame( 'Added to the buyer\'s card.', Messages::outcome_why( 'credited', 'cashback' ) );
+	}
+
+	public function test_the_cashback_note_gives_the_rate_with_an_example_or_no_number(): void {
+		\Brain\Monkey\Functions\when( 'number_format_i18n' )->alias( static fn( $n, $d = 0 ) => number_format( (float) $n, (int) $d, ',', '.' ) );
+		$this->assertSame(
+			'Cashback card "A": 5% of every paid order\'s total is added to the card\'s balance (the card\'s own rate, set in the card\'s settings in the Rewloy panel). For example, an order of 400 TRY adds 20 TRY. No rule is needed.',
+			Messages::cashback_note( 'A', 5.0, 'TRY' )
+		);
+		$this->assertStringContainsString( '7,50% of every paid order\'s total', Messages::cashback_note( 'A', 7.5, '' ) );
+		$this->assertStringContainsString( 'an order of 400 adds 30', Messages::cashback_note( 'A', 7.5, '' ) );
+		$none = Messages::cashback_note( 'A', null, 'TRY' );
+		$this->assertStringContainsString( 'the card\'s own rate is applied', $none );
+		$this->assertDoesNotMatchRegularExpression( '/\d/', $none );
+	}
 }

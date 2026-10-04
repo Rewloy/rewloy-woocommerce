@@ -13,7 +13,7 @@ defined( 'ABSPATH' ) || exit;
 
 final class Plugin {
 
-	public const VERSION = '0.2.1';
+	public const VERSION = '0.2.2';
 	/** Set when the My Account tab is turned on or off, so the rewrite rules are flushed once. */
 	public const FLUSH_OPTION = 'rewloy_wc_flush_rewrite';
 	public const TEXT_DOMAIN  = 'rewloy-for-woocommerce';

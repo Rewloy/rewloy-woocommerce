@@ -1,16 +1,16 @@
 === Rewloy for WooCommerce ===
 Contributors: rewloy
-Tags: loyalty, rewards, woocommerce, stamp card, wallet
+Tags: loyalty, rewards, woocommerce, cashback, wallet
 Requires at least: 6.4
 Tested up to: 7.1
 Requires PHP: 8.1
-Stable tag: 0.2.1
+Stable tag: 0.2.2
 License: MIT
 License URI: https://opensource.org/licenses/MIT
 WC requires at least: 8.0
 WC tested up to: 11.1
 
-Paid WooCommerce orders fill Rewloy loyalty cards: stamps, points and cashback. Connect with a one-time code.
+Paid WooCommerce orders fill Rewloy loyalty cards: stamps, points, VIP visits and cashback. Connect with a one-time code.
 
 == Description ==
 
@@ -20,7 +20,7 @@ Paid WooCommerce orders fill Rewloy loyalty cards: stamps, points and cashback. 
 
 * **Connect in one step, with a code.** In the Rewloy panel you choose the card and the rule and get a one-time code (good for 15 minutes); paste it under WooCommerce › Rewloy. The plugin makes the link in Rewloy and the WooCommerce webhook itself, and keeps an API key that can work with this shop's link only. You need no API key of your own. (An API key can still be used, as an advanced option, for sites set up from a script.)
 * **Health on the screen.** The last request from the shop and what became of it, the last request Rewloy refused for its signature, the webhook's status and failures, and the last orders with their outcomes, in the Rewloy panel's own words.
-* **Rules.** For stamp and points cards: per order, or per amount of the order total. A VIP card counts one visit per paid order; a cashback card uses its own rate.
+* **Rules.** For stamp and points cards: per order, or per amount of the order total. A VIP card counts one visit per paid order; a cashback card uses its own rate (the screen shows the rate when Rewloy lists it). The rule fields apply to stamp and points cards only; the screen says what a VIP or cashback card does instead. Gift cards, coupons and discount cards are given by code and cannot be linked to a shop.
 * **Only paid orders** (*processing* or *completed*), each once, on the card the buyer already has (matched by the order's e-mail). A card is never opened by an order alone.
 * **Pause and resume**, or remove the connection, from the same screen.
 * **Invitation at checkout (optional, off by default).** An unticked box, with the privacy notice beside it. When the order is paid and the box was ticked, one card is opened for the billing e-mail and its private link is e-mailed to the buyer. The order that earned the card counts toward it, whichever of the two reaches Rewloy first.
@@ -36,7 +36,7 @@ You need a Rewloy account with the e-commerce feature. The plugin does not creat
 
 * **Kodla tek adımda bağlanma.** Rewloy panelinde kartı ve kuralı seçip tek kullanımlık bir kod alırsınız (15 dakika geçerli); WooCommerce › Rewloy ekranına yapıştırırsınız. Rewloy'daki bağlantıyı ve WooCommerce webhook'unu eklenti kurar ve yalnız bu mağazanın bağlantısıyla çalışabilen bir API anahtarı saklar. Kendi API anahtarınıza gerek yok. (API anahtarı, betikle kurulan siteler için gelişmiş bir seçenek olarak durur.)
 * **Sağlık ekranda.** Mağazadan gelen son istek ve sonucu, imzası tutmadığı için reddedilen son istek, webhook'un durumu ve başarısız teslimleri, son siparişler ve sonuçları; Rewloy panelinin kendi sözleriyle.
-* **Kurallar.** Damga ve puan kartlarında sipariş başına ya da sipariş tutarına göre. VIP kartında her ödenmiş sipariş bir ziyarettir; cashback kartında kartın kendi oranı uygulanır.
+* **Kurallar.** Damga ve puan kartlarında sipariş başına ya da sipariş tutarına göre. VIP kartında her ödenmiş sipariş bir ziyarettir; cashback kartında kartın kendi oranı uygulanır (Rewloy oranı verdiğinde ekran gösterir). Kural alanları yalnız damga ve puan kartları içindir; VIP ya da cashback kartının ne yaptığını ekran söyler. Hediye kartı, kupon ve indirim kartı kodla verilir, mağazaya bağlanamaz.
 * **Yalnız ödenmiş sipariş** (*işleniyor* ya da *tamamlandı*), her biri bir kez, alıcının zaten sahip olduğu karta (siparişin e-postasıyla eşleşir). Yalnız siparişle kart açılmaz.
 * Aynı ekrandan **duraklatma ve sürdürme** ya da bağlantıyı kaldırma.
 * **Ödeme sayfasında davet (isteğe bağlı, varsayılan kapalı).** İşaretsiz bir kutu ve yanında aydınlatma metni. Sipariş ödendiğinde ve kutu işaretlenmişse fatura e-postası için bir kart açılır; özel bağlantısı alıcıya e-postayla gönderilir. Kartı kazandıran sipariş de karta sayılır; Rewloy'a hangisi önce ulaşırsa ulaşsın.
@@ -106,6 +106,9 @@ Türkçe özet: Eklenti yalnız Rewloy'a veri gönderir (bağlanırken bağlant�
 
 == Changelog ==
 
+= 0.2.2 =
+* The connect screen no longer treats every card as a stamp card. It names the card's type, and says what an order does for each: stamp and points cards follow the rule; a VIP card counts one visit per paid order; a cashback card uses its own rate, shown with an example when Rewloy lists it. The rule fields are shown only when a stamp or points card can be chosen, and are labelled as applying to those two only. For a cashback card, "Below the threshold" now says the cashback came to nothing. Turkish for every new string.
+
 = 0.2.1 =
 * WordPress Plugin Check: request input is unslashed and sanitised in one step, an exception's text is marked as escaped where it is shown, and the short description fits 150 characters, and the earlier-invitation lookup skips the order itself in its loop instead of with `exclude`. No behaviour changes.
 
@@ -121,6 +124,9 @@ Türkçe özet: Eklenti yalnız Rewloy'a veri gönderir (bağlanırken bağlant�
 * First preview: connect with an API key, health and last orders, pause, resume, disconnect; optional checkout invitation; optional My Account tab; Turkish translation.
 
 == Upgrade Notice ==
+
+= 0.2.2 =
+The connect screen says what a VIP or cashback card does with an order and hides the stamp and points rule when no such card can be chosen; no change to how orders are credited.
 
 = 0.2.1 =
 Code-review fixes for WordPress.org; no behaviour changes.

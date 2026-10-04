@@ -56,4 +56,20 @@ final class PackageTest extends TestCase {
 		}
 		$this->assertLessThan( 40, count( $files ) );
 	}
+
+	/** The version lives in five places; a release that forgets one is caught here. */
+	public function test_every_place_the_version_lives_agrees(): void {
+		$root = dirname( __DIR__ );
+		$v    = \Rewloy\WooCommerce\Plugin::VERSION;
+		$this->assertMatchesRegularExpression( '/^\d+\.\d+\.\d+$/', $v );
+		$this->assertStringContainsString( ' * Version:           ' . $v . "\n", (string) file_get_contents( $root . '/rewloy-for-woocommerce.php' ) );
+		$readme = (string) file_get_contents( $root . '/readme.txt' );
+		$this->assertStringContainsString( "Stable tag: $v\n", $readme );
+		$this->assertStringContainsString( "== Changelog ==\n\n= $v =\n", $readme );
+		$this->assertStringContainsString( "== Upgrade Notice ==\n\n= $v =\n", $readme );
+		foreach ( array( 'rewloy-for-woocommerce.pot', 'rewloy-for-woocommerce-tr_TR.po' ) as $f ) {
+			$this->assertStringContainsString( '"Project-Id-Version: Rewloy for WooCommerce ' . $v . '\n"', (string) file_get_contents( $root . '/languages/' . $f ), $f );
+		}
+		$this->assertStringContainsString( "## $v (", (string) file_get_contents( $root . '/CHANGELOG.md' ) );
+	}
 }

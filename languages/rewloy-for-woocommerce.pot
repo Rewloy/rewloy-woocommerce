@@ -3,7 +3,7 @@
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: Rewloy for WooCommerce 0.2.1\n"
+"Project-Id-Version: Rewloy for WooCommerce 0.2.2\n"
 "Report-Msgid-Bugs-To: https://github.com/Rewloy/rewloy-woocommerce/issues\n"
 "Language: \n"
 "MIME-Version: 1.0\n"
@@ -30,7 +30,7 @@ msgstr ""
 msgid "Get it here"
 msgstr ""
 
-#: src/Admin.php:54 src/Admin.php:187
+#: src/Admin.php:54 src/Admin.php:186
 msgid "Rewloy for WooCommerce"
 msgstr ""
 
@@ -46,333 +46,341 @@ msgstr ""
 msgid "Saved."
 msgstr ""
 
-#: src/Admin.php:142 src/Admin.php:147 src/Admin.php:184
+#: src/Admin.php:142 src/Admin.php:147 src/Admin.php:183
 msgid "You are not allowed to do this."
 msgstr ""
 
-#: src/Admin.php:188
+#: src/Admin.php:187
 msgid "Paid orders fill the loyalty cards of Rewloy customers."
 msgstr ""
 
-#: src/Admin.php:227
+#: src/Admin.php:226
 msgid "(set by REWLOY_API_KEY in wp-config.php)"
 msgstr ""
 
-#: src/Admin.php:229
+#: src/Admin.php:228
 msgid "(made by the connect code for this shop's link only; saved on this site and never shown again)"
 msgstr ""
 
-#: src/Admin.php:231
+#: src/Admin.php:230
 msgid "(saved on this site; the key is never shown again)"
 msgstr ""
 
-#: src/Admin.php:233 src/Admin.php:255
+#: src/Admin.php:232 src/Admin.php:254
 msgid "API key"
 msgstr ""
 
-#: src/Admin.php:236
+#: src/Admin.php:235
 msgid "Test environment: this key belongs to your Rewloy test environment, so cards and orders here are not real and nothing reaches customers from Rewloy. A checkout invitation still e-mails the card link to the address typed at checkout, so use test orders only."
 msgstr ""
 
-#: src/Admin.php:241
+#: src/Admin.php:240
 msgid "Connect with a code"
 msgstr ""
 
-#: src/Admin.php:242
+#: src/Admin.php:241
 msgid "In the Rewloy panel go to E-ticaret › Mağaza bağla › WooCommerce › \"Rewloy eklentisiyle\". Choose the card and the rule there. Rewloy gives a one-time code that works for 15 minutes; paste it here."
 msgstr ""
 
-#: src/Admin.php:244
+#: src/Admin.php:243
 msgid "Connect code"
 msgstr ""
 
-#: src/Admin.php:246 src/Admin.php:297
+#: src/Admin.php:245 src/Admin.php:304 src/Admin.php:319
 msgid "Connect"
 msgstr ""
 
-#: src/Admin.php:248
+#: src/Admin.php:247
 msgid "Connecting creates the link in Rewloy, a WooCommerce webhook that this plugin keeps, and an API key for this shop only: it sees only this link and can issue cards on its card. The key is saved on this site, never shown again, and Rewloy revokes it when the link is deleted. You need no API key of your own."
 msgstr ""
 
-#: src/Admin.php:252
+#: src/Admin.php:251
 msgid "Advanced: connect with an API key instead"
 msgstr ""
 
-#: src/Admin.php:253
+#: src/Admin.php:252
 msgid "Use this when nobody can make a code: a site set up from a script (WP-CLI, deployment tooling), a staging copy, or a key kept in wp-config.php. A code is single-use and lasts 15 minutes, and it needs someone signed in to the Rewloy panel. A key of your own stays on this site with whatever it may do, so make it with the E-ticaret role: cards, shop links and issuing cards, and nothing else. Rewloy checks the key, and only then is it saved."
 msgstr ""
 
-#: src/Admin.php:257
+#: src/Admin.php:256
 msgid "You can also set it in wp-config.php with define( 'REWLOY_API_KEY', 'rwk_…' ); that one then wins."
 msgstr ""
 
-#: src/Admin.php:258
+#: src/Admin.php:257
 msgid "Check and save the key"
 msgstr ""
 
-#: src/Admin.php:263
+#: src/Admin.php:262
 msgid "Card and rule"
 msgstr ""
 
-#: src/Admin.php:267
+#: src/Admin.php:266
 msgid "Remove the key"
 msgstr ""
 
-#: src/Admin.php:277
+#: src/Admin.php:276
 msgid "No card can be filled by orders yet. In the Rewloy panel, create an active stamp, points, VIP or cashback card. Gift cards, coupons and discount cards are given by code."
 msgstr ""
 
-#: src/Admin.php:282 src/Admin.php:311
+#: src/Admin.php:281 src/Admin.php:337
 msgid "Card"
 msgstr ""
 
-#: src/Admin.php:287 src/Admin.php:312
-msgid "Rule"
+#: src/Admin.php:286
+msgid "What an order does depends on the card:"
 msgstr ""
 
-#: src/Admin.php:288
-msgid "For stamp and points cards. A VIP card counts one visit per paid order; a cashback card applies its own rate to the order total."
+#: src/Admin.php:309
+msgid "Rule (stamp and points cards only)"
 msgstr ""
 
-#: src/Admin.php:289
+#: src/Admin.php:310
+msgid "These two settings apply to stamp and points cards only. A VIP or cashback card ignores them, as the notes above say."
+msgstr ""
+
+#: src/Admin.php:311
 msgid "For every order, whatever the amount"
 msgstr ""
 
-#: src/Admin.php:290
+#: src/Admin.php:312
 msgid "By the order total: for every amount of"
 msgstr ""
 
-#: src/Admin.php:291
+#: src/Admin.php:313
 msgid "Amount threshold"
 msgstr ""
 
-#: src/Admin.php:292
+#: src/Admin.php:314
 msgid "Example: 100 means a 250 order counts twice. The order must be in the card's currency."
 msgstr ""
 
-#: src/Admin.php:294
+#: src/Admin.php:316
 msgid "How many stamps or points"
 msgstr ""
 
-#: src/Admin.php:299
+#: src/Admin.php:325
 msgid "Connecting creates the link in Rewloy and a WooCommerce webhook (topic \"Order updated\") that this plugin keeps."
 msgstr ""
 
-#: src/Admin.php:308
+#: src/Admin.php:334
 msgid "Connection"
 msgstr ""
 
-#: src/Admin.php:313
+#: src/Admin.php:338
+msgid "Rule"
+msgstr ""
+
+#: src/Admin.php:339
 msgid "Link"
 msgstr ""
 
-#: src/Admin.php:313
+#: src/Admin.php:339
 msgid "Off"
 msgstr ""
 
-#: src/Admin.php:313
+#: src/Admin.php:339
 msgid "On"
 msgstr ""
 
-#: src/Admin.php:313
+#: src/Admin.php:339
 msgid "Unknown (see the message below)"
 msgstr ""
 
-#: src/Admin.php:316
+#: src/Admin.php:342
 msgid "Missing. It was deleted; orders no longer reach Rewloy. Remove the connection and connect again."
 msgstr ""
 
 #. translators: 1: webhook status, 2: number of failed deliveries.
-#: src/Admin.php:316 src/Admin.php:319
+#: src/Admin.php:342 src/Admin.php:345
 msgid "WooCommerce webhook"
 msgstr ""
 
-#: src/Admin.php:319
+#: src/Admin.php:345
 #, php-format
 msgid "%1$s, failed deliveries: %2$d"
 msgstr ""
 
-#: src/Admin.php:322
+#: src/Admin.php:348
 msgid "Last order seen"
 msgstr ""
 
-#: src/Admin.php:323
+#: src/Admin.php:349
 msgid "Last request from the shop"
 msgstr ""
 
-#: src/Admin.php:326
+#: src/Admin.php:352
 msgid "Last refused request"
 msgstr ""
 
-#: src/Admin.php:330
+#: src/Admin.php:356
 msgid "Key in Rewloy"
 msgstr ""
 
-#: src/Admin.php:335
+#: src/Admin.php:361
 msgid "A request whose signature did not match came to this shop's address and was refused; no order was affected. If it keeps appearing, check the settings of the webhook in WooCommerce."
 msgstr ""
 
-#: src/Admin.php:342
+#: src/Admin.php:368
 msgid "The webhook is not active, so orders are not reaching Rewloy. WooCommerce turns a webhook off after repeated failed deliveries."
 msgstr ""
 
-#: src/Admin.php:344
+#: src/Admin.php:370
 msgid "Turn the webhook on again"
 msgstr ""
 
-#: src/Admin.php:348
+#: src/Admin.php:374
 msgid "Open the webhook in WooCommerce (delivery log)"
 msgstr ""
 
-#: src/Admin.php:352
+#: src/Admin.php:378
 msgid "Orders by outcome"
 msgstr ""
 
-#: src/Admin.php:361
+#: src/Admin.php:387
 msgid "Manage"
 msgstr ""
 
-#: src/Admin.php:365
+#: src/Admin.php:391
 msgid "Turn the link off"
 msgstr ""
 
-#: src/Admin.php:365
+#: src/Admin.php:391
 msgid "Turn the link on"
 msgstr ""
 
-#: src/Admin.php:366
+#: src/Admin.php:392
 msgid "While off, Rewloy records orders but does not add them to cards, now or later. The webhook stays."
 msgstr ""
 
-#: src/Admin.php:368
+#: src/Admin.php:394
 msgid "Remove the connection? The link in Rewloy and the webhook are deleted. Cards keep what they already got."
 msgstr ""
 
-#: src/Admin.php:372
+#: src/Admin.php:398
 msgid "Remove the connection"
 msgstr ""
 
-#: src/Admin.php:375
+#: src/Admin.php:401
 msgid "If Rewloy cannot be reached"
 msgstr ""
 
-#: src/Admin.php:376
+#: src/Admin.php:402
 msgid "Forget the connection on this site only: the webhook is deleted here, but the link in Rewloy stays until you delete it in the Rewloy panel."
 msgstr ""
 
-#: src/Admin.php:379
+#: src/Admin.php:405
 msgid "Forget the connection on this site only"
 msgstr ""
 
-#: src/Admin.php:387
+#: src/Admin.php:413
 msgid "Last orders"
 msgstr ""
 
-#: src/Admin.php:389
+#: src/Admin.php:415
 msgid "No order has arrived yet. The first paid order will show here with its outcome. Unpaid orders are not recorded."
 msgstr ""
 
-#: src/Admin.php:392
+#: src/Admin.php:418
 msgid "Order"
 msgstr ""
 
-#: src/Admin.php:392
+#: src/Admin.php:418
 msgid "Outcome"
 msgstr ""
 
-#: src/Admin.php:392
+#: src/Admin.php:418
 msgid "Time"
 msgstr ""
 
-#: src/Admin.php:403
+#: src/Admin.php:429
 msgid "On your shop"
 msgstr ""
 
-#: src/Admin.php:406
+#: src/Admin.php:432
 msgid "Invitation at checkout"
 msgstr ""
 
-#: src/Admin.php:407
+#: src/Admin.php:433
 msgid "Show an unticked box at checkout that invites the buyer to a loyalty card"
 msgstr ""
 
-#: src/Admin.php:408
+#: src/Admin.php:434
 msgid "When the order is paid and the box was ticked, a card is opened once for the billing e-mail and its link is e-mailed to the buyer. Only the e-mail address is sent to Rewloy. Works on the classic checkout and, from WooCommerce 8.9, on the block checkout."
 msgstr ""
 
-#: src/Admin.php:409
+#: src/Admin.php:435
 msgid "Data controller"
 msgstr ""
 
-#: src/Admin.php:411
+#: src/Admin.php:437
 msgid "Contact e-mail"
 msgstr ""
 
-#: src/Admin.php:411
+#: src/Admin.php:437
 msgid "Contact e-mail (optional)"
 msgstr ""
 
-#: src/Admin.php:412
+#: src/Admin.php:438
 msgid "Named in the notice beside the checkout box and in the card e-mail: the business that answers for the buyer's data. Your legal name, if you have one."
 msgstr ""
 
-#: src/Admin.php:413
+#: src/Admin.php:439
 msgid "My Account tab"
 msgstr ""
 
-#: src/Admin.php:414
+#: src/Admin.php:440
 msgid "Add a \"My loyalty card\" tab to My Account"
 msgstr ""
 
-#: src/Admin.php:415
+#: src/Admin.php:441
 msgid "The tab does not show card data. WooCommerce does not verify that an account's e-mail is the person's own, so showing a card by e-mail would let anyone who registers with someone else's address see their card. The tab sends the customer to Rewloy Cüzdan, where they prove their address with a code, and shows your join link. It makes no call to Rewloy."
 msgstr ""
 
-#: src/Admin.php:417
+#: src/Admin.php:443
 msgid "Save"
 msgstr ""
 
-#: src/Admin.php:422
+#: src/Admin.php:448
 msgid "What goes to Rewloy"
 msgstr ""
 
-#: src/Admin.php:423
+#: src/Admin.php:449
 msgid "To connect with a code: the code and this site's title, which names the key in Rewloy's list of keys. To manage the connection afterwards: the key that came back (or your own API key), and the card and rule when you choose them."
 msgstr ""
 
-#: src/Admin.php:424
+#: src/Admin.php:450
 msgid "For each order update, the webhook sends the order's number, status, currency and total, signed with a secret only this shop and Rewloy have, and the billing e-mail once the order is processing or completed. Nothing else of the order (no names, addresses, phone numbers or items). Rewloy stores only the order number, its outcome and the time."
 msgstr ""
 
-#: src/Admin.php:425
+#: src/Admin.php:451
 msgid "If you turn on the invitation, the billing e-mail of an order whose box was ticked is sent once, to open the card."
 msgstr ""
 
-#: src/Admin.php:426
+#: src/Admin.php:452
 msgid "Nothing else, and no tracking. The My Account tab sends nothing."
 msgstr ""
 
-#: src/Admin.php:428
+#: src/Admin.php:454
 msgid "Deleting this plugin removes its settings, its key and its webhook from this site. It does not delete anything in Rewloy: the link, the key a connect code made and the cards stay until you delete them in the Rewloy panel (deleting the link revokes the key)."
 msgstr ""
 
-#: src/Admin.php:442
+#: src/Admin.php:468
 msgid "No signed request has come from the shop yet."
 msgstr ""
 
-#: src/Admin.php:475
+#: src/Admin.php:501
 msgid "active"
 msgstr ""
 
-#: src/Admin.php:477
+#: src/Admin.php:503
 msgid "paused"
 msgstr ""
 
-#: src/Admin.php:479
+#: src/Admin.php:505
 msgid "disabled"
 msgstr ""
 
-#: src/Admin.php:488 src/Admin.php:492
+#: src/Admin.php:514 src/Admin.php:518
 msgid "none yet"
 msgstr ""
 
@@ -434,135 +442,135 @@ msgstr ""
 msgid "The key was removed from this site."
 msgstr ""
 
-#: src/Connection.php:213 src/Connection.php:220
+#: src/Connection.php:220 src/Connection.php:227
 msgid "This shop is already connected."
 msgstr ""
 
-#: src/Connection.php:216
+#: src/Connection.php:223
 msgid "A connection is already being made. Wait a moment and reload this page."
 msgstr ""
 
-#: src/Connection.php:234
+#: src/Connection.php:241
 msgid "Save the API key first."
 msgstr ""
 
-#: src/Connection.php:238
+#: src/Connection.php:245
 msgid "Choose a card."
 msgstr ""
 
-#: src/Connection.php:251
+#: src/Connection.php:258
 msgid "That card was not found, or it is archived, or an order cannot fill it."
 msgstr ""
 
-#: src/Connection.php:267
+#: src/Connection.php:274
 msgid "How many stamps or points must be between 1 and 100."
 msgstr ""
 
-#: src/Connection.php:274
+#: src/Connection.php:281
 msgid "Enter the amount threshold, between 1 and 100,000."
 msgstr ""
 
-#: src/Connection.php:292
+#: src/Connection.php:299
 msgid "Rewloy's answer was not what a shop link looks like, so nothing was connected."
 msgstr ""
 
-#: src/Connection.php:293
+#: src/Connection.php:300
 msgid "Rewloy's answer was not what a shop link looks like, so nothing was connected. A link may have been made: if one of this shop is listed under E-ticaret in the Rewloy panel, delete it there."
 msgstr ""
 
-#: src/Connection.php:301
+#: src/Connection.php:308
 msgid "WooCommerce could not create the webhook, so the link was removed again. Nothing was connected."
 msgstr ""
 
-#: src/Connection.php:302
+#: src/Connection.php:309
 msgid "WooCommerce could not create the webhook, and the link could not be removed again. Nothing was connected; delete the link under E-ticaret in the Rewloy panel."
 msgstr ""
 
-#: src/Connection.php:322
+#: src/Connection.php:329
 msgid "Connected. Paid orders now reach Rewloy through a WooCommerce webhook this plugin created."
 msgstr ""
 
-#: src/Connection.php:334
+#: src/Connection.php:341
 msgid "REWLOY_API_KEY is set in wp-config.php, and that key would win over the one a code makes. Remove it from wp-config.php to connect with a code."
 msgstr ""
 
-#: src/Connection.php:337
+#: src/Connection.php:344
 msgid "An API key is saved on this site. Remove it first to connect with a code."
 msgstr ""
 
-#: src/Connection.php:341
+#: src/Connection.php:348
 msgid "That is not a Rewloy connect code. It starts with rwc_ and is made in the Rewloy panel: E-ticaret › Mağaza bağla › WooCommerce › \"Rewloy eklentisiyle\"."
 msgstr ""
 
-#: src/Connection.php:351
+#: src/Connection.php:358
 msgid "Rewloy gave no clear answer, so the code may or may not have been spent. Try the same code once more. If Rewloy then says it is not valid, open E-ticaret in the Rewloy panel, delete this shop's link if one is listed, and make a new code."
 msgstr ""
 
-#: src/Connection.php:368
+#: src/Connection.php:375
 msgid "Rewloy's answer was not what a connection looks like, so nothing was connected, and what it made was removed again. The code is spent: make a new one."
 msgstr ""
 
-#: src/Connection.php:369
+#: src/Connection.php:376
 msgid "Rewloy's answer was not what a connection looks like, so nothing was connected. The code is spent, and a link may have been made: if one of this shop is listed under E-ticaret in the Rewloy panel, delete it there and make a new code."
 msgstr ""
 
-#: src/Connection.php:377
+#: src/Connection.php:384
 msgid "WooCommerce could not create the webhook, so the link and its key were removed again. Nothing was connected. The code is spent: make a new one."
 msgstr ""
 
-#: src/Connection.php:378
+#: src/Connection.php:385
 msgid "WooCommerce could not create the webhook, and the link could not be removed again. Nothing was connected. The code is spent: delete the link under E-ticaret in the Rewloy panel and make a new code."
 msgstr ""
 
-#: src/Connection.php:406
+#: src/Connection.php:413
 msgid "Connected to your Rewloy test environment. Orders reach it through a WooCommerce webhook this plugin created; nothing in it reaches your real customers, but a checkout invitation still e-mails the card link to the address typed at checkout."
 msgstr ""
 
-#: src/Connection.php:407
+#: src/Connection.php:414
 msgid "Connected. Paid orders now reach Rewloy through a WooCommerce webhook this plugin created, and the key this site holds can work with this shop's link only."
 msgstr ""
 
-#: src/Connection.php:430 src/Connection.php:455
+#: src/Connection.php:437 src/Connection.php:462
 msgid "This shop is not connected."
 msgstr ""
 
-#: src/Connection.php:439
+#: src/Connection.php:446
 msgid "The link is off. Orders that arrive meanwhile are recorded but not added to cards, now or later."
 msgstr ""
 
-#: src/Connection.php:440
+#: src/Connection.php:447
 msgid "The link is on again."
 msgstr ""
 
-#: src/Connection.php:460
+#: src/Connection.php:467
 msgid "There is no API key to ask Rewloy with. Use \"Forget the connection on this site only\"."
 msgstr ""
 
-#: src/Connection.php:481
+#: src/Connection.php:488
 msgid "The connection was forgotten on this site, with the key it held. The link in Rewloy is still there; delete it in the Rewloy panel if you no longer want it (that revokes the key)."
 msgstr ""
 
-#: src/Connection.php:482
+#: src/Connection.php:489
 msgid "The connection was forgotten on this site. The link in Rewloy is still there; delete it in the Rewloy panel if you no longer want it."
 msgstr ""
 
-#: src/Connection.php:487
+#: src/Connection.php:494
 msgid "Disconnected. The link and the webhook are deleted, Rewloy revoked the key with the link, and cards keep what they already got."
 msgstr ""
 
-#: src/Connection.php:488
+#: src/Connection.php:495
 msgid "Disconnected. The link and the webhook are deleted; cards keep what they already got."
 msgstr ""
 
-#: src/Connection.php:496
+#: src/Connection.php:503
 msgid "The webhook no longer exists. Remove the connection and connect again."
 msgstr ""
 
-#: src/Connection.php:498
+#: src/Connection.php:505
 msgid "The webhook is active again."
 msgstr ""
 
-#: src/Connection.php:544
+#: src/Connection.php:551
 msgid "Rewloy no longer accepts the key this site holds. A key made by a connect code is revoked together with its link, so the link was probably deleted in the Rewloy panel, and orders are no longer reaching it. Use \"Forget the connection on this site only\" below, then connect again with a new code."
 msgstr ""
 
@@ -699,36 +707,40 @@ msgstr ""
 msgid "Signature did not match"
 msgstr ""
 
-#: src/Messages.php:70
-msgid "Added to the buyer's card."
-msgstr ""
-
-#: src/Messages.php:72
-msgid "No customer of this card has the order's e-mail; no card was opened."
-msgstr ""
-
 #: src/Messages.php:74
-msgid "The amount did not reach the rule's threshold; nothing was added."
-msgstr ""
-
-#: src/Messages.php:76
-msgid "Arrived while the link was off; it was not processed and will not be later."
+msgid "The cashback on the order came to nothing; nothing was added."
 msgstr ""
 
 #: src/Messages.php:78
+msgid "Added to the buyer's card."
+msgstr ""
+
+#: src/Messages.php:80
+msgid "No customer of this card has the order's e-mail; no card was opened."
+msgstr ""
+
+#: src/Messages.php:82
+msgid "The amount did not reach the rule's threshold; nothing was added."
+msgstr ""
+
+#: src/Messages.php:84
+msgid "Arrived while the link was off; it was not processed and will not be later."
+msgstr ""
+
+#: src/Messages.php:86
 msgid "The order is not in the card's currency; the amount is not converted."
 msgstr ""
 
-#: src/Messages.php:87
+#: src/Messages.php:95
 msgid "Every paid order counts as one visit."
 msgstr ""
 
-#: src/Messages.php:90
+#: src/Messages.php:98
 msgid "The card's own cashback rate is applied to the order total."
 msgstr ""
 
 #. translators: 1: amount with currency, 2: number of stamps.
-#: src/Messages.php:97
+#: src/Messages.php:105
 #, php-format
 msgid "For every %1$s of the order total, %2$d stamp (at most 50 per order)."
 msgid_plural "For every %1$s of the order total, %2$d stamps (at most 50 per order)."
@@ -736,7 +748,7 @@ msgstr[0] ""
 msgstr[1] ""
 
 #. translators: 1: amount with currency, 2: number of points.
-#: src/Messages.php:99
+#: src/Messages.php:107
 #, php-format
 msgid "For every %1$s of the order total, %2$d point (at most 500 per order)."
 msgid_plural "For every %1$s of the order total, %2$d points (at most 500 per order)."
@@ -744,7 +756,7 @@ msgstr[0] ""
 msgstr[1] ""
 
 #. translators: %d: number of stamps.
-#: src/Messages.php:103
+#: src/Messages.php:111
 #, php-format
 msgid "%d stamp for every paid order."
 msgid_plural "%d stamps for every paid order."
@@ -752,125 +764,145 @@ msgstr[0] ""
 msgstr[1] ""
 
 #. translators: %d: number of points.
-#: src/Messages.php:105
+#: src/Messages.php:113
 #, php-format
 msgid "%d point for every paid order."
 msgid_plural "%d points for every paid order."
 msgstr[0] ""
 msgstr[1] ""
 
-#: src/Messages.php:112
+#: src/Messages.php:118
+msgid "VIP cards: every paid order counts as one visit and moves the card up its levels. No rule is needed."
+msgstr ""
+
+#: src/Messages.php:123
+msgid "Stamp and points cards: the rule below decides what an order adds."
+msgstr ""
+
+#. translators: %s: the card's name.
+#: src/Messages.php:137
+#, php-format
+msgid "Cashback card \"%s\": the card's own rate is applied to the total of every paid order and added to the card's balance; you change the rate in the card's settings in the Rewloy panel. No rule is needed."
+msgstr ""
+
+#. translators: 1: the card's name, 2: the rate in percent, 3: an example order total with currency, 4: what that order adds, with currency.
+#: src/Messages.php:142
+#, php-format
+msgid "Cashback card \"%1$s\": %2$s%% of every paid order's total is added to the card's balance (the card's own rate, set in the card's settings in the Rewloy panel). For example, an order of %3$s adds %4$s. No rule is needed."
+msgstr ""
+
+#: src/Messages.php:149
 msgid "Stamp card"
 msgstr ""
 
-#: src/Messages.php:114
+#: src/Messages.php:151
 msgid "Points card"
 msgstr ""
 
-#: src/Messages.php:116
+#: src/Messages.php:153
 msgid "VIP card"
 msgstr ""
 
-#: src/Messages.php:118
+#: src/Messages.php:155
 msgid "Cashback card"
 msgstr ""
 
 #. translators: 1: the sentence, 2: the request id Rewloy support asks for.
-#: src/Messages.php:130
+#: src/Messages.php:167
 #, php-format
 msgid "%1$s (request: %2$s)"
 msgstr ""
 
-#: src/Messages.php:137
+#: src/Messages.php:174
 msgid "Rewloy could not be reached or its answer could not be read. Try again in a moment."
 msgstr ""
 
-#: src/Messages.php:142
+#: src/Messages.php:179
 msgid "Rewloy did not accept this API key. Check that it is complete and has not been revoked."
 msgstr ""
 
-#: src/Messages.php:145
+#: src/Messages.php:182
 msgid "This API key is not allowed to do that. It needs the permissions to see cards, to see and manage shop links, and to issue cards; the E-ticaret role has exactly those."
 msgstr ""
 
-#: src/Messages.php:147
+#: src/Messages.php:184
 msgid "Shop links are not in this business's Rewloy plan."
 msgstr ""
 
-#: src/Messages.php:149
+#: src/Messages.php:186
 msgid "At most 5 shops can be linked. Delete one in the Rewloy panel first."
 msgstr ""
 
-#: src/Messages.php:151
+#: src/Messages.php:188
 msgid "That card was not found, or it is archived."
 msgstr ""
 
-#: src/Messages.php:153
+#: src/Messages.php:190
 msgid "Gift cards, coupons and discount cards are not filled by orders; they are given by code."
 msgstr ""
 
-#: src/Messages.php:155
+#: src/Messages.php:192
 msgid "This link no longer exists in Rewloy."
 msgstr ""
 
-#: src/Messages.php:157
+#: src/Messages.php:194
 msgid "Rewloy is receiving too many requests from this key or address. Try again in a few minutes."
 msgstr ""
 
-#: src/Messages.php:159
+#: src/Messages.php:196
 msgid "Rewloy did not accept this code: it may have been used already, have lapsed (a code lasts 15 minutes) or have been withdrawn. Make a new one in the Rewloy panel: E-ticaret › Mağaza bağla › WooCommerce › \"Rewloy eklentisiyle\"."
 msgstr ""
 
-#: src/Messages.php:161
+#: src/Messages.php:198
 msgid "This shop link belongs to another card than the one the invitation opens."
 msgstr ""
 
-#: src/Messages.php:163
+#: src/Messages.php:200
 msgid "Rewloy already has a different request under this order's key."
 msgstr ""
 
-#: src/Messages.php:165
+#: src/Messages.php:202
 msgid "The Rewloy test environment is full. Reset it in the Rewloy panel."
 msgstr ""
 
-#: src/Messages.php:168
+#: src/Messages.php:205
 msgid "This business's Rewloy account is read-only right now."
 msgstr ""
 
-#: src/Messages.php:170
+#: src/Messages.php:207
 msgid "Rewloy did not accept the values sent."
 msgstr ""
 
-#: src/Messages.php:172
+#: src/Messages.php:209
 msgid "Rewloy needs the statement that the customer was shown the privacy notice."
 msgstr ""
 
-#: src/Messages.php:175
+#: src/Messages.php:212
 msgid "This e-mail address cannot be given a card by this business."
 msgstr ""
 
-#: src/Messages.php:177
+#: src/Messages.php:214
 msgid "Rewloy did not accept the customer's details."
 msgstr ""
 
-#: src/Messages.php:179
+#: src/Messages.php:216
 msgid "Rewloy refused to open the card."
 msgstr ""
 
-#: src/Messages.php:181 src/Messages.php:184
+#: src/Messages.php:218 src/Messages.php:221
 msgid "Rewloy had an error of its own. Try again in a moment."
 msgstr ""
 
 #. translators: %s: the API's error code.
-#: src/Messages.php:189
+#: src/Messages.php:226
 #, php-format
 msgid "Rewloy refused the request (code %s)."
 msgstr ""
 
-#: src/Messages.php:190
+#: src/Messages.php:227
 msgid "Rewloy refused the request."
 msgstr ""
 
-#: src/Plugin.php:62
+#: src/Plugin.php:65
 msgid "Rewloy for WooCommerce needs WooCommerce to be installed and active."
 msgstr ""

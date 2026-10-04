@@ -154,9 +154,11 @@ final class Connection {
 	}
 
 	/**
-	 * The cards an order can fill: active stamp, points, VIP and cashback cards.
+	 * The cards an order can fill: active stamp, points, VIP and cashback cards. `cashback_rate` is a cashback card's own
+	 * percentage as Rewloy lists it in the card's `config` (null when it is not listed, and for every other type);
+	 * `currency` is the card's currency when Rewloy lists one.
 	 *
-	 * @return list<array{id:string,name:string,type:string,join_url:string}>
+	 * @return list<array{id:string,name:string,type:string,join_url:string,cashback_rate:float|null,currency:string}>
 	 *
 	 * @throws RewloyException When Rewloy answers with an error or not at all.
 	 * @throws \LogicException Without a key.
@@ -172,12 +174,17 @@ final class Connection {
 			if ( 'active' !== ( $p['status'] ?? 'active' ) || ! in_array( $type, Settings::LINKABLE_TYPES, true ) ) {
 				continue;
 			}
-			$join = is_string( $p['joinUrl'] ?? null ) ? $p['joinUrl'] : '';
-			$out[] = array(
-				'id'       => is_string( $p['id'] ?? null ) ? $p['id'] : '',
-				'name'     => is_string( $p['name'] ?? null ) ? $p['name'] : '',
-				'type'     => $type,
-				'join_url' => $this->settings->is_rewloy_url( $join ) ? $join : '',
+			$join   = is_string( $p['joinUrl'] ?? null ) ? $p['joinUrl'] : '';
+			$config = is_array( $p['config'] ?? null ) ? $p['config'] : array();
+			$rate   = $config['cashbackRate'] ?? null;
+			$cur    = $config['currency'] ?? null;
+			$out[]  = array(
+				'id'            => is_string( $p['id'] ?? null ) ? $p['id'] : '',
+				'name'          => is_string( $p['name'] ?? null ) ? $p['name'] : '',
+				'type'          => $type,
+				'join_url'      => $this->settings->is_rewloy_url( $join ) ? $join : '',
+				'cashback_rate' => 'cashback' === $type && ( is_int( $rate ) || is_float( $rate ) ) && $rate > 0 && $rate <= 100 ? (float) $rate : null,
+				'currency'      => is_string( $cur ) && 1 === preg_match( '/^[A-Z]{3}$/', $cur ) ? $cur : '',
 			);
 		}
 		return $out;

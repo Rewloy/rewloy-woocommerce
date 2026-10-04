@@ -63,8 +63,16 @@ final class Messages {
 		return 'bad_signature' === $reason ? __( 'Signature did not match', 'rewloy-for-woocommerce' ) : $reason;
 	}
 
-	/** What an outcome means, in the panel's words. */
-	public static function outcome_why( string $outcome ): string {
+	/**
+	 * What an outcome means, in the panel's words. `below` depends on the card: a stamp or points card has a rule with a
+	 * threshold, a cashback card has none (its own rate applied to the total came to nothing).
+	 *
+	 * @param string $type The connected card's type ('' when not known).
+	 */
+	public static function outcome_why( string $outcome, string $type = '' ): string {
+		if ( 'below' === $outcome && 'cashback' === $type ) {
+			return __( 'The cashback on the order came to nothing; nothing was added.', 'rewloy-for-woocommerce' );
+		}
 		switch ( $outcome ) {
 			case 'credited':
 				return __( 'Added to the buyer\'s card.', 'rewloy-for-woocommerce' );
@@ -103,6 +111,35 @@ final class Messages {
 			? sprintf( _n( '%d stamp for every paid order.', '%d stamps for every paid order.', $step, 'rewloy-for-woocommerce' ), $step )
 			/* translators: %d: number of points. */
 			: sprintf( _n( '%d point for every paid order.', '%d points for every paid order.', $step, 'rewloy-for-woocommerce' ), $step );
+	}
+
+	/** What a VIP card does with an order; it needs no rule. */
+	public static function vip_note(): string {
+		return __( 'VIP cards: every paid order counts as one visit and moves the card up its levels. No rule is needed.', 'rewloy-for-woocommerce' );
+	}
+
+	/** What stamp and points cards do with an order: the rule on the screen. */
+	public static function stamp_points_note(): string {
+		return __( 'Stamp and points cards: the rule below decides what an order adds.', 'rewloy-for-woocommerce' );
+	}
+
+	/**
+	 * What a cashback card does with an order: its own rate, no rule. With the rate when Rewloy lists it (and an example
+	 * on a 400 order); without a number when it does not.
+	 *
+	 * @param string     $name     The card's name.
+	 * @param float|null $rate     The card's rate in percent, or null when not listed.
+	 * @param string     $currency The card's currency ('' when not listed).
+	 */
+	public static function cashback_note( string $name, ?float $rate, string $currency ): string {
+		if ( null === $rate ) {
+			/* translators: %s: the card's name. */
+			return sprintf( __( 'Cashback card "%s": the card\'s own rate is applied to the total of every paid order and added to the card\'s balance; you change the rate in the card\'s settings in the Rewloy panel. No rule is needed.', 'rewloy-for-woocommerce' ), $name );
+		}
+		$fmt = static fn( float $n ): string => number_format_i18n( $n, floor( $n ) === $n ? 0 : 2 );
+		$cur = '' !== $currency ? ' ' . $currency : '';
+		/* translators: 1: the card's name, 2: the rate in percent, 3: an example order total with currency, 4: what that order adds, with currency. */
+		return sprintf( __( 'Cashback card "%1$s": %2$s%% of every paid order\'s total is added to the card\'s balance (the card\'s own rate, set in the card\'s settings in the Rewloy panel). For example, an order of %3$s adds %4$s. No rule is needed.', 'rewloy-for-woocommerce' ), $name, $fmt( $rate ), $fmt( 400.0 ) . $cur, $fmt( 4 * $rate ) . $cur );
 	}
 
 	/** A programme type in words. */

@@ -282,9 +282,32 @@ final class Admin {
 		foreach ( $programs as $p ) {
 			echo '<option value="' . esc_attr( $p['id'] ) . '">' . esc_html( $p['name'] . ' (' . Messages::type_label( $p['type'] ) . ')' ) . '</option>';
 		}
-		echo '</select></td></tr>';
-		echo '<tr><th scope="row">' . esc_html__( 'Rule', 'rewloy-for-woocommerce' ) . '</th><td>';
-		echo '<p class="description">' . esc_html__( 'For stamp and points cards. A VIP card counts one visit per paid order; a cashback card applies its own rate to the order total.', 'rewloy-for-woocommerce' ) . '</p>';
+		echo '</select>';
+		echo '<p class="description">' . esc_html__( 'What an order does depends on the card:', 'rewloy-for-woocommerce' ) . '</p>';
+		echo '<ul class="ul-disc">';
+		$types = array_column( $programs, 'type' );
+		if ( in_array( 'stamp', $types, true ) || in_array( 'points', $types, true ) ) {
+			echo '<li>' . esc_html( Messages::stamp_points_note() ) . '</li>';
+		}
+		if ( in_array( 'vip', $types, true ) ) {
+			echo '<li>' . esc_html( Messages::vip_note() ) . '</li>';
+		}
+		foreach ( $programs as $p ) {
+			if ( 'cashback' === $p['type'] ) {
+				echo '<li>' . esc_html( Messages::cashback_note( $p['name'], $p['cashback_rate'], $p['currency'] ) ) . '</li>';
+			}
+		}
+		echo '</ul></td></tr>';
+		if ( array() === array_intersect( $types, array( 'stamp', 'points' ) ) ) {
+			// Only VIP and cashback cards: there is no rule to choose, so the fields are not shown (and need no script).
+			echo '</tbody></table>';
+			submit_button( __( 'Connect', 'rewloy-for-woocommerce' ) );
+			echo '</form>';
+			$this->connect_footnote();
+			return;
+		}
+		echo '<tr><th scope="row">' . esc_html__( 'Rule (stamp and points cards only)', 'rewloy-for-woocommerce' ) . '</th><td>';
+		echo '<p class="description">' . esc_html__( 'These two settings apply to stamp and points cards only. A VIP or cashback card ignores them, as the notes above say.', 'rewloy-for-woocommerce' ) . '</p>';
 		echo '<p><label><input type="radio" name="rule" value="order" checked /> ' . esc_html__( 'For every order, whatever the amount', 'rewloy-for-woocommerce' ) . '</label></p>';
 		echo '<p><label><input type="radio" name="rule" value="amount" /> ' . esc_html__( 'By the order total: for every amount of', 'rewloy-for-woocommerce' ) . '</label> ';
 		echo '<input type="text" name="per_amount" value="100" size="8" inputmode="decimal" aria-label="' . esc_attr__( 'Amount threshold', 'rewloy-for-woocommerce' ) . '" /></p>';
@@ -295,6 +318,10 @@ final class Admin {
 		echo '</tbody></table>';
 		submit_button( __( 'Connect', 'rewloy-for-woocommerce' ) );
 		echo '</form>';
+		$this->connect_footnote();
+	}
+
+	private function connect_footnote(): void {
 		echo '<p class="description">' . esc_html__( 'Connecting creates the link in Rewloy and a WooCommerce webhook (topic "Order updated") that this plugin keeps.', 'rewloy-for-woocommerce' ) . '</p>';
 	}
 
@@ -351,7 +378,7 @@ final class Admin {
 			echo '<h3>' . esc_html__( 'Orders by outcome', 'rewloy-for-woocommerce' ) . '</h3><ul>';
 			foreach ( Messages::OUTCOMES as $o ) {
 				$n = is_numeric( $link['orders'][ $o ] ?? null ) ? (int) $link['orders'][ $o ] : 0;
-				echo '<li><strong>' . esc_html( Messages::outcome_label( $o ) ) . ':</strong> ' . esc_html( (string) $n ) . ' <span class="description">' . esc_html( Messages::outcome_why( $o ) ) . '</span></li>';
+				echo '<li><strong>' . esc_html( Messages::outcome_label( $o ) ) . ':</strong> ' . esc_html( (string) $n ) . ' <span class="description">' . esc_html( Messages::outcome_why( $o, $s['program_type'] ) ) . '</span></li>';
 			}
 			echo '</ul>';
 		}
