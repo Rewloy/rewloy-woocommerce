@@ -192,6 +192,86 @@ final class Client {
 	}
 
 	/**
+	 * `getProgram`: one card programme (name, type, its saved `sale` rule).
+	 *
+	 * @return array<string,mixed>
+	 */
+	public function get_program( string $id ): array {
+		return $this->object_of( $this->call( 'GET', '/programs/' . $this->uuid( $id ) ) );
+	}
+
+	/**
+	 * `getPass`: a card's state (status, balance, progress, reward readiness) and what it accepts (`actions`, `sale`).
+	 * Needs `passes.read` ("Görüntüleme"). No personal data.
+	 *
+	 * @return array<string,mixed>
+	 */
+	public function get_pass( string $serial ): array {
+		return $this->object_of( $this->call( 'GET', '/passes/' . $this->serial( $serial ) ) );
+	}
+
+	/**
+	 * `getPassTill`: the till's rules for a card at one branch: may it be used here, the branches it is valid at, the
+	 * running till promotion and the notices the cashier sees. Needs `scan.use` at that branch ("Kasa").
+	 *
+	 * @return array<string,mixed>
+	 */
+	public function get_pass_till( string $serial, string $location_id ): array {
+		return $this->object_of( $this->call( 'GET', '/passes/' . $this->serial( $serial ) . '/till', array( 'locationId' => $this->uuid( $location_id ) ) ) );
+	}
+
+	/**
+	 * `recordSale`: a paid total written to the card by its type. The Idempotency-Key is required: one per button press,
+	 * the same on a retry of that press, so a repeat never writes twice. The receipt number goes in `reference`, never
+	 * in the key.
+	 *
+	 * @param int    $amount_minor    The paid total in the business's currency, in minor units (0 to 10,000,000).
+	 * @param string $reference       A receipt or order number ('' for none); at most 80 characters.
+	 * @param string $idempotency_key 8 to 64 characters.
+	 * @return array<string,mixed>
+	 */
+	public function record_sale( string $serial, string $location_id, int $amount_minor, string $reference, string $idempotency_key ): array {
+		$body = array(
+			'locationId'  => $this->uuid( $location_id ),
+			'amountMinor' => max( 0, min( 10_000_000, $amount_minor ) ),
+		);
+		if ( '' !== $reference ) {
+			$body['reference'] = function_exists( 'mb_substr' ) ? mb_substr( $reference, 0, 80 ) : substr( $reference, 0, 80 );
+		}
+		return $this->object_of( $this->call( 'POST', '/passes/' . $this->serial( $serial ) . '/sale', array(), $body, $this->idempotency( $idempotency_key ) ) );
+	}
+
+	/**
+	 * `passAction`: one of the card's own till operations (redeem a reward, spend a balance, use a coupon…), with the
+	 * Idempotency-Key of the button press.
+	 *
+	 * @param array<string,mixed> $body `action`, `locationId` and the fields the action needs.
+	 * @return array<string,mixed>
+	 */
+	public function pass_action( string $serial, array $body, string $idempotency_key ): array {
+		return $this->object_of( $this->call( 'POST', '/passes/' . $this->serial( $serial ) . '/actions', array(), $body, $this->idempotency( $idempotency_key ) ) );
+	}
+
+	/**
+	 * `listActivity`: the latest happenings on one programme's cards, newest first. Needs `analytics.read`; for this
+	 * plugin's key Rewloy sends no personal data (a teammate is "ekip üyesi", no person id).
+	 *
+	 * @return list<array<string,mixed>>
+	 */
+	public function list_activity( string $program_id, int $limit = 20 ): array {
+		return $this->list_of( $this->call( 'GET', '/activity', array( 'programId' => $this->uuid( $program_id ), 'limit' => max( 1, min( 100, $limit ) ) ) ) );
+	}
+
+	/**
+	 * `getAnalytics` for one programme over 7, 30 or 90 days: open cards, cards given, visits, rewards used.
+	 *
+	 * @return array<string,mixed>
+	 */
+	public function analytics( string $program_id, int $days = 30 ): array {
+		return $this->object_of( $this->call( 'GET', '/analytics', array( 'programId' => $this->uuid( $program_id ), 'days' => in_array( $days, array( 7, 30, 90 ), true ) ? $days : 30 ) ) );
+	}
+
+	/**
 	 * One call, with the retry rules (see Retry::retries_for).
 	 *
 	 * @param array<string,scalar>     $query
@@ -324,6 +404,23 @@ final class Client {
 	private function header( array $res, string $name ): string {
 		$value = wp_remote_retrieve_header( $res, $name );
 		return is_string( $value ) ? $value : '';
+	}
+
+	/** A card number that goes into a path: Rewloy's `XXXX-XXXX-XXXX`. */
+	private function serial( string $serial ): string {
+		$s = Serial::normalize( $serial );
+		if ( '' === $s ) {
+			throw new \InvalidArgumentException( 'Not a Rewloy card number.' );
+		}
+		return $s;
+	}
+
+	/** An Idempotency-Key as Rewloy takes it: 8 to 64 letters, digits, `-`, `_`, `.` or `:`. */
+	private function idempotency( string $key ): string {
+		if ( 1 !== preg_match( '/^[A-Za-z0-9._:-]{8,64}$/', $key ) ) {
+			throw new \InvalidArgumentException( 'An Idempotency-Key is 8 to 64 characters.' );
+		}
+		return $key;
 	}
 
 	/** An id that goes into a path must be a UUID. */

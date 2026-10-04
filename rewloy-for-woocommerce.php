@@ -2,8 +2,8 @@
 /**
  * Plugin Name:       Rewloy for WooCommerce
  * Plugin URI:        https://github.com/Rewloy/rewloy-woocommerce
- * Description:       Paid WooCommerce orders fill Rewloy loyalty cards. Connect with a one-time code; optional invitation at checkout. / Ödenen siparişler Rewloy sadakat kartlarını doldurur.
- * Version:           0.2.2
+ * Description:       Paid WooCommerce orders fill Rewloy loyalty cards; a small Rewloy panel in WordPress shows the card and its activity and can run a till. Connect with a one-time code. / Ödenen siparişler Rewloy sadakat kartlarını doldurur.
+ * Version:           0.3.0
  * Requires at least: 6.4
  * Requires PHP:      8.1
  * Requires Plugins:  woocommerce

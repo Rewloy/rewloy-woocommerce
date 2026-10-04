@@ -158,6 +158,297 @@ final class Messages {
 		}
 	}
 
+	/** Any card type in words, the gift card, coupon and discount card included (the till reads every type). */
+	public static function any_type_label( string $type ): string {
+		switch ( $type ) {
+			case 'giftcard':
+				return __( 'Gift card', 'rewloy-for-woocommerce' );
+			case 'voucher':
+				return __( 'Coupon', 'rewloy-for-woocommerce' );
+			case 'discount':
+				return __( 'Discount card', 'rewloy-for-woocommerce' );
+			default:
+				return self::type_label( $type );
+		}
+	}
+
+	/** A card's status in words. */
+	public static function status_label( string $status ): string {
+		switch ( $status ) {
+			case 'active':
+				return __( 'Open', 'rewloy-for-woocommerce' );
+			case 'redeemed':
+				return __( 'Used', 'rewloy-for-woocommerce' );
+			case 'voided':
+			case 'revoked':
+			case 'ended':
+				return __( 'Closed', 'rewloy-for-woocommerce' );
+			case 'expired':
+				return __( 'Expired', 'rewloy-for-woocommerce' );
+			default:
+				return $status;
+		}
+	}
+
+	/** What a card's progress figure is (`progressLabel` of getPass). */
+	public static function progress_label( string $key ): string {
+		switch ( $key ) {
+			case 'stamps':
+				return __( 'Stamps', 'rewloy-for-woocommerce' );
+			case 'points':
+				return __( 'Points', 'rewloy-for-woocommerce' );
+			case 'rewardReady':
+				return __( 'Reward', 'rewloy-for-woocommerce' );
+			case 'balance':
+				return __( 'Balance', 'rewloy-for-woocommerce' );
+			case 'discount':
+				return __( 'Discount', 'rewloy-for-woocommerce' );
+			case 'tier':
+				return __( 'Level', 'rewloy-for-woocommerce' );
+			case 'offer':
+				return __( 'Offer', 'rewloy-for-woocommerce' );
+			default:
+				return __( 'State', 'rewloy-for-woocommerce' );
+		}
+	}
+
+	/** A card's own till operation as a button says it; '' for one this plugin does not offer. */
+	public static function action_label( string $action ): string {
+		switch ( $action ) {
+			case 'earn-stamps':
+				return __( 'Add a stamp', 'rewloy-for-woocommerce' );
+			case 'redeem-stamps':
+				return __( 'Give the stamp reward', 'rewloy-for-woocommerce' );
+			case 'earn-points':
+				return __( 'Add points for an amount', 'rewloy-for-woocommerce' );
+			case 'redeem-reward':
+				return __( 'Give a points reward', 'rewloy-for-woocommerce' );
+			case 'spend-points':
+				return __( 'Spend points', 'rewloy-for-woocommerce' );
+			case 'visit':
+				return __( 'Count a visit', 'rewloy-for-woocommerce' );
+			case 'spend':
+				return __( 'Spend from the balance', 'rewloy-for-woocommerce' );
+			case 'accrue':
+				return __( 'Add cashback for an amount', 'rewloy-for-woocommerce' );
+			case 'use':
+				return __( 'Use the card', 'rewloy-for-woocommerce' );
+			default:
+				return '';
+		}
+	}
+
+	/** Does the operation spend something of the customer's (a reward, a balance, a coupon)? Those ask to confirm. */
+	public static function action_spends( string $action ): bool {
+		return in_array( $action, array( 'redeem-stamps', 'redeem-reward', 'spend-points', 'spend', 'use' ), true );
+	}
+
+	/** What a sale writes on a card of this type (`sale.writes`). */
+	public static function sale_writes( string $writes ): string {
+		switch ( $writes ) {
+			case 'stamps':
+				return __( 'A sale adds a stamp.', 'rewloy-for-woocommerce' );
+			case 'points':
+				return __( 'A sale adds points by the card\'s own rate.', 'rewloy-for-woocommerce' );
+			case 'visit':
+				return __( 'A sale counts a visit (once per visit window).', 'rewloy-for-woocommerce' );
+			case 'cashback':
+				return __( 'A sale adds cashback by the card\'s own rate.', 'rewloy-for-woocommerce' );
+			default:
+				return __( 'A sale adds nothing to this card; use its own operations below.', 'rewloy-for-woocommerce' );
+		}
+	}
+
+	/**
+	 * What a sale did, from Rewloy's answer (`recordSale`): what was written and how much, or why nothing was.
+	 *
+	 * @param array<string,mixed> $r        The answer.
+	 * @param string              $currency The card's currency ('' when not known).
+	 */
+	public static function sale_result( array $r, string $currency ): string {
+		$applied  = is_string( $r['applied'] ?? null ) ? $r['applied'] : 'none';
+		$credited = is_numeric( $r['credited'] ?? null ) ? (int) $r['credited'] : 0;
+		$repeat   = true === ( $r['duplicate'] ?? false );
+		switch ( $applied ) {
+			case 'stamps':
+				/* translators: %d: number of stamps. */
+				$text = sprintf( _n( 'Sale recorded: %d stamp added.', 'Sale recorded: %d stamps added.', $credited, 'rewloy-for-woocommerce' ), $credited );
+				break;
+			case 'points':
+				/* translators: %d: number of points. */
+				$text = sprintf( _n( 'Sale recorded: %d point added.', 'Sale recorded: %d points added.', $credited, 'rewloy-for-woocommerce' ), $credited );
+				break;
+			case 'visit':
+				$text = __( 'Sale recorded: a visit counted.', 'rewloy-for-woocommerce' );
+				break;
+			case 'cashback':
+				/* translators: %s: the cashback with currency. */
+				$text = sprintf( __( 'Sale recorded: %s cashback added.', 'rewloy-for-woocommerce' ), number_format_i18n( $credited / 100, 2 ) . ( '' !== $currency ? ' ' . $currency : '' ) );
+				break;
+			default:
+				$text = self::sale_reason( is_string( $r['reason'] ?? null ) ? $r['reason'] : '' );
+		}
+		if ( is_array( $r['promotion'] ?? null ) && is_string( $r['promotion']['name'] ?? null ) ) {
+			/* translators: %s: the till promotion's name. */
+			$text .= ' ' . sprintf( __( 'Promotion: %s.', 'rewloy-for-woocommerce' ), $r['promotion']['name'] );
+		}
+		if ( true === ( $r['rewardReady'] ?? false ) ) {
+			$text .= ' ' . __( 'A reward is ready on this card.', 'rewloy-for-woocommerce' );
+		}
+		return $repeat ? __( 'This press was already recorded; nothing was written twice.', 'rewloy-for-woocommerce' ) . ' ' . $text : $text;
+	}
+
+	/** Why a sale wrote nothing (`reason` of recordSale). */
+	public static function sale_reason( string $reason ): string {
+		switch ( $reason ) {
+			case 'below_minimum':
+				return __( 'Nothing written: the total earns less than one point or one cent of cashback.', 'rewloy-for-woocommerce' );
+			case 'visit_already_counted':
+				return __( 'Nothing written: a visit is already counted on this card in this visit window.', 'rewloy-for-woocommerce' );
+			case 'card_full':
+				return __( 'Nothing written: the stamp card is full. Give the reward first.', 'rewloy-for-woocommerce' );
+			case 'type_does_not_earn':
+				return __( 'Nothing written: gift cards, coupons and discount cards earn nothing from a sale.', 'rewloy-for-woocommerce' );
+			default:
+				return __( 'Nothing was written.', 'rewloy-for-woocommerce' );
+		}
+	}
+
+	/** What an operation did. */
+	public static function action_result( string $action, bool $repeat ): string {
+		$label = self::action_label( $action );
+		/* translators: %s: the operation, such as "Add a stamp". */
+		$text = sprintf( __( 'Done: %s.', 'rewloy-for-woocommerce' ), $label );
+		return $repeat ? __( 'This press was already recorded; nothing was written twice.', 'rewloy-for-woocommerce' ) . ' ' . $text : $text;
+	}
+
+	/** One line of a card's activity: what happened and how much. */
+	public static function activity_text( string $kind, ?float $delta, string $unit, string $currency ): string {
+		$amount = '';
+		if ( null !== $delta && 0.0 !== $delta ) {
+			$abs = abs( $delta );
+			// Money is kept in minor units (Rewloy's `try_minor`, whatever the card's currency).
+			if ( str_ends_with( $unit, '_minor' ) ) {
+				$amount = number_format_i18n( $abs / 100, 2 ) . ( '' !== $currency ? ' ' . $currency : '' );
+			} else {
+				$amount = number_format_i18n( $abs, floor( $abs ) === $abs ? 0 : 2 ) . ( '' !== $unit ? ' ' . self::unit_label( $unit ) : '' );
+			}
+		}
+		switch ( $kind ) {
+			case 'earn':
+				$what = __( 'Added', 'rewloy-for-woocommerce' );
+				break;
+			case 'redeem':
+				$what = __( 'Reward used', 'rewloy-for-woocommerce' );
+				break;
+			case 'spend':
+				$what = __( 'Spent', 'rewloy-for-woocommerce' );
+				break;
+			case 'load':
+				$what = __( 'Loaded', 'rewloy-for-woocommerce' );
+				break;
+			case 'accrue':
+				$what = __( 'Cashback added', 'rewloy-for-woocommerce' );
+				break;
+			case 'visit':
+				$what = __( 'Visit', 'rewloy-for-woocommerce' );
+				break;
+			case 'use':
+				$what = __( 'Card used', 'rewloy-for-woocommerce' );
+				break;
+			case 'issue':
+				$what = __( 'Card given', 'rewloy-for-woocommerce' );
+				break;
+			case 'adjust':
+				$what = __( 'Corrected by hand', 'rewloy-for-woocommerce' );
+				break;
+			case 'expire':
+				$what = __( 'Expired', 'rewloy-for-woocommerce' );
+				break;
+			default:
+				$what = $kind;
+		}
+		return '' !== $amount ? $what . ': ' . $amount : $what;
+	}
+
+	/** A ledger unit in words. */
+	private static function unit_label( string $unit ): string {
+		switch ( $unit ) {
+			case 'stamp':
+			case 'stamps':
+				return __( 'stamp(s)', 'rewloy-for-woocommerce' );
+			case 'point':
+			case 'points':
+				return __( 'point(s)', 'rewloy-for-woocommerce' );
+			case 'visit':
+			case 'visits':
+				return __( 'visit(s)', 'rewloy-for-woocommerce' );
+			default:
+				return $unit;
+		}
+	}
+
+	/** Who did something, in one word: never a name or an address. */
+	public static function actor_kind( string $kind ): string {
+		switch ( $kind ) {
+			case 'seat':
+				return __( 'Team member', 'rewloy-for-woocommerce' );
+			case 'api_key':
+				return __( 'Integration (API key)', 'rewloy-for-woocommerce' );
+			default:
+				return __( 'Rewloy', 'rewloy-for-woocommerce' );
+		}
+	}
+
+	/** A failed card lookup in the panel's words. */
+	public static function for_card_error( RewloyException $e ): string {
+		switch ( $e->api_code ) {
+			case 'PASS_NOT_FOUND':
+				return __( 'No card with this number in this business.', 'rewloy-for-woocommerce' );
+			case 'FORBIDDEN':
+			case 'OUT_OF_SCOPE':
+				return __( 'This shop\'s key may not read that card: it belongs to another Rewloy card, or "Görüntüleme" is off for this shop in the Rewloy panel.', 'rewloy-for-woocommerce' );
+		}
+		return self::for_error( $e );
+	}
+
+	/** A failed till call in the panel's words. */
+	public static function for_till_error( RewloyException $e ): string {
+		switch ( $e->api_code ) {
+			case 'PASS_NOT_FOUND':
+				return __( 'No card with this number in this business.', 'rewloy-for-woocommerce' );
+			case 'WRONG_LOCATION':
+				return __( 'This card is not valid at this branch.', 'rewloy-for-woocommerce' );
+			case 'LOCATION_NOT_FOUND':
+				return __( 'The till\'s branch no longer exists in Rewloy (it may have been archived). Choose another branch for this shop in the Rewloy panel.', 'rewloy-for-woocommerce' );
+			case 'PASS_INACTIVE':
+				return __( 'This card is closed.', 'rewloy-for-woocommerce' );
+			case 'PASS_EXPIRED':
+				return __( 'This card has expired.', 'rewloy-for-woocommerce' );
+			case 'PASS_USED_UP':
+				return __( 'This card has already been used.', 'rewloy-for-woocommerce' );
+			case 'INSUFFICIENT_BALANCE':
+				return __( 'The card\'s balance is not enough for that.', 'rewloy-for-woocommerce' );
+			case 'REWARD_NOT_READY':
+				return __( 'The reward is not ready on this card yet.', 'rewloy-for-woocommerce' );
+			case 'VISIT_ALREADY_COUNTED':
+				return __( 'A visit is already counted on this card in this visit window.', 'rewloy-for-woocommerce' );
+			case 'WRONG_CARD_TYPE':
+				return __( 'This card does not take that operation.', 'rewloy-for-woocommerce' );
+			case 'IDEMPOTENCY_KEY_REUSED':
+				return __( 'Rewloy already recorded a different operation for this press. Nothing was written; press the button again for a new operation.', 'rewloy-for-woocommerce' );
+			case 'IDEMPOTENCY_IN_PROGRESS':
+				return __( 'This press is still being recorded. Wait a moment and try again; nothing will be written twice.', 'rewloy-for-woocommerce' );
+			case 'FORBIDDEN':
+			case 'OUT_OF_SCOPE':
+				return __( 'This shop\'s till may not do that: the card belongs to another Rewloy card, the operation needs a permission the till does not have, or the till was turned off in the Rewloy panel.', 'rewloy-for-woocommerce' );
+		}
+		if ( $e->outcome_unknown() ) {
+			return __( 'Rewloy gave no clear answer, so it may or may not have been recorded. Press "Try again": the same press is sent again and Rewloy never writes it twice.', 'rewloy-for-woocommerce' );
+		}
+		return self::for_error( $e );
+	}
+
 	/** What a person should read for a failed call. Never the API's own text, never the key. */
 	public static function for_error( RewloyException $e ): string {
 		$text = self::error_text( $e );

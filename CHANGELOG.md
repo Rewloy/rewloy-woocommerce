@@ -6,6 +6,36 @@ https://rewloy.com/gelistiriciler/degisiklikler
 This plugin's releases. The API's own changes are listed at the link above.
 Every decision and its reason: [docs/DECISIONS.md](docs/DECISIONS.md).
 
+## 0.3.0 (4 Oct 2026)
+
+WordPress'te küçük bir Rewloy paneli: özet, kartlardaki işlemler ve kasa. Neler yapabileceğini Rewloy
+panelinde seçersiniz; kasa siz açana kadar kapalıdır.
+
+A small Rewloy panel inside WordPress: overview, activity on the cards and a till. What it may do is
+chosen in the Rewloy panel; the till is off until it is turned on there. Needs Rewloy with ADR 178.
+
+- A top-level **Rewloy** menu with four tabs (D37). *Özet*: the connected card and business, the
+  link's health, the last orders, the card's numbers for 30 days each named by what it counts, and
+  "done in the Rewloy panel" with the exact page for each thing the plugin does not do (D44).
+  *Kartlar*: the latest activity on customers' cards, a card by its last four characters, refreshed
+  every 30 seconds while the tab is visible; a card lookup by number. *Kasa*: read a card typed or
+  scanned, Rewloy's notices for the branch, record a sale with a receipt number, use the card's own
+  operations. *Ayarlar*: the 0.2 screen, unchanged; WooCommerce › Rewloy still opens it.
+- Abilities from `GET /v1/me` on every load (D38): "Görüntüleme" opens Özet's numbers and Kartlar,
+  "Kasa" opens the till at its one branch; off, each tab says what it is, why, and links to where it
+  is turned on.
+- No customer's name, e-mail or phone in WordPress (D39); a scanned card link's private key is
+  dropped at once (D40); the API key never reaches the browser: the scripts talk to admin-ajax with a
+  nonce (D41).
+- One Idempotency-Key (a UUID) per till button press, the same on "Tekrar dene"; the receipt number
+  goes in `reference`. `IDEMPOTENCY_KEY_REUSED`, `LOCATION_NOT_FOUND` and the other till refusals in
+  the panel's words (D42). Spending asks to confirm; a gift card top-up is never offered (D43).
+- New `Client` calls: `get_program`, `get_pass`, `get_pass_till`, `record_sale`, `pass_action`,
+  `list_activity`, `analytics`. Two small scripts and a stylesheet under `assets/` (in the zip).
+- Turkish for every new string; `.pot`, `.po` and `.mo` rebuilt. README, readme.txt (privacy section
+  included) and docs/DECISIONS.md (D37–D44).
+- 377 PHPUnit tests (73 new); PHPStan level 8 and `bin/lint` clean.
+
 ## 0.2.2 (4 Oct 2026)
 
 Panelin mağaza formuyla aynı: bağlantı ekranı her kartı damga kartı saymaz.

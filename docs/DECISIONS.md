@@ -522,6 +522,81 @@ and the labels say the same without it. Nothing sent to Rewloy changed (`connect
 sent no rule for VIP and cashback). The `below` outcome for a cashback card says the cashback came
 to nothing, since it has no threshold.
 
+## 0.3.0: a small Rewloy panel inside WordPress (Rewloy ADR 178)
+
+The owner, 4 October: once connected, the plugin's admin area should do the main things — viewing,
+the integration's settings, a till, watching — and send people to the exact page of app.rewloy.com
+for the rest (creating and designing cards, campaigns, the team, billing). Rewloy ADR 178 gave the
+connect code's key two abilities beyond its link: "Görüntüleme" (default on) and one branch's
+"Kasa" (default off), changed on the link's page in the panel at once.
+
+**D37. A top-level "Rewloy" menu, four tabs; the old entry stays.** Özet, Kartlar, Kasa, Ayarlar
+(`Admin::TABS`), WordPress's own `nav-tab` markup, a submenu entry per tab and the current tab marked
+(`submenu_file`). The page keeps the slug it had as WooCommerce's submenu (`rewloy-for-woocommerce`),
+so old links and bookmarks land on it; WooCommerce › Rewloy stays, as a plain link to Ayarlar.
+Ayarlar is the 0.2 screen, unchanged in behaviour, and its actions return to it. Before the shop is
+connected only Ayarlar is shown. Capability `manage_woocommerce` everywhere, as before.
+
+**D38. What the plugin may do is Rewloy's to say, read on every screen load.** `GET /v1/me` names
+`key.abilities` (`view`, `till`) and `key.tillLocationId`; `Panel::abilities()` reads it once per
+request and turns everything off on any doubt (no answer, a refused key, a `till` without a branch).
+No cache: a change made in the Rewloy panel shows on the next page load, as the platform promises,
+and the plugin needs no reconnect. A shop connected before 0.3.0 holds neither ability until someone
+turns them on there; the screens say so and link to `…/panel/settings/shops/<id>#wordpress-yetkileri`.
+Without `view` the Kartlar tab and Özet's numbers are not shown; without `till` the Kasa tab only
+says what it is, why it is off and where it is turned on. Rewloy checks every call again regardless.
+
+**D39. No personal data, and masks.** Rewloy sends this plugin's key no customer's or teammate's name,
+e-mail or phone (ADR 178); the plugin shows none even if one came: activity rows carry what, when,
+where and who in one word (`Messages::actor_kind`: team member, integration, Rewloy), never the
+`actor` text or a person id. A card number is shown by its last four characters (`Serial::mask`,
+`••••-••••-JKLM`), whole only on the till right after it was read. "Müşteriyi Rewloy'da aç" is the
+customer list searched by the card number (`/panel/customers?q=<serial>`): a card has no panel page of
+its own (ADR 178). Numbers on Özet come from `getAnalytics` for the programme and say what they
+count ("Open cards now", "… in the last 30 days").
+
+**D40. A scanned card link gives its number and nothing else.** The QR code is
+`https://rewloy.com/p/<serial>?k=…`; `k` opens the holder's own data. `Serial::from_input` (and the
+same rule in `assets/till.js`) takes the number from an https link on rewloy.com or a subdomain with
+path `/p/<serial>`, and drops the query at once; the till's field is overwritten with the bare number,
+so the key does not stay on the page; only the number is sent to WordPress and on to Rewloy. Anything
+else that starts with http(s) is refused. A scanner whose keyboard layout differs from the computer's
+(Turkish Q turns `:` `/` `-` `?` into other characters) still types three groups of four: when the
+input mentions `rewloy` and is not a well-formed link, the number is taken from before the first `?`
+or `,`. Nothing of the rest is kept.
+
+**D41. The key never reaches the browser.** The two scripts (`assets/watch.js` on Kartlar,
+`assets/till.js` on Kasa, enqueued on that tab only, no build step, no CDN) post to admin-ajax
+(`Ajax.php`): capability first, then a POST, then the screens' nonce, then sanitised input; the
+answer is JSON the scripts write as text, never HTML. The scripts carry no words of their own:
+`wp_localize_script` hands them the translated strings.
+
+**D42. One Idempotency-Key per button press, kept across a retry.** The lead's instruction and the
+platform's rule since ADR 177's review (keys 8–64 characters, unique for good per credential): the
+browser makes a random UUID per press (`crypto.randomUUID`, or `getRandomValues` where that is
+missing), the server accepts only a version 4 UUID and passes it on, and the receipt number goes in
+`reference`, never in the key. The client retries a keyed POST itself (two retries) with the same key
+and body; if no clear answer comes even then, the screen offers "Tekrar dene", which sends the same
+press with the same key; a new press is a new key. Rewloy's answers are said in the panel's words,
+`IDEMPOTENCY_KEY_REUSED` and `LOCATION_NOT_FOUND` (an archived till branch) included
+(`Messages::for_till_error`).
+
+**D43. The till offers what the card accepts, and asks before spending.** The till reads `getPass`
+(`actions` with `ready`, `sale.writes`) and `getPassTill` (allowed here, Rewloy's own notices for the
+cashier, such as a wrong branch or a running promotion). Sale: the paid total (0 to 100,000; a stamp
+and a VIP visit count a zero total, as Rewloy does) and an optional receipt number, cleaned to one
+line of 80 characters. The card's own operations are buttons, enabled only when `ready`; redeeming a
+reward, spending points or a balance and using a coupon ask to confirm. `load` (a gift card top-up)
+is never offered or sent: it needs `instruments.issue`, which the till never has. Without
+"Görüntüleme" the till still sells and shows the branch's notices, but not the card's state or
+operations (they need `passes.read`).
+
+**D44. "Rewloy panelinde yapılır", never a fake form.** Creating a card, designing it and changing its
+rewards, customers, campaigns, analytics, the team, branches, keys and webhooks, billing, and the
+plugin's own abilities each have one line on Özet with the exact page (`Links`, from Rewloy's API.md
+"Panelin adresleri"). The panel lives on the API's origin, so `REWLOY_API_URL` moves the links with it.
+A programme's page is also its design (the panel's builder has no address per tab: said, not invented).
+
 **What the platform could still add** (for the next brief): `listShopOrders` filterable by
 `orderId` (or an `order` in `getPass`), so the plugin could check an `unknown` order against
 Rewloy before repeating it and not only trust the key; a way to read a connect answer again

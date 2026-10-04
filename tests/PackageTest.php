@@ -39,7 +39,7 @@ final class PackageTest extends TestCase {
 
 	public function test_the_zip_has_the_plugin_files_in_a_folder_named_after_the_slug(): void {
 		$files = $this->build();
-		foreach ( array( 'rewloy-for-woocommerce.php', 'uninstall.php', 'readme.txt', 'LICENSE', 'src/Client.php', 'src/Issuer.php', 'src/autoload.php', 'languages/rewloy-for-woocommerce-tr_TR.mo', 'languages/rewloy-for-woocommerce-tr_TR.po', 'languages/rewloy-for-woocommerce.pot' ) as $f ) {
+		foreach ( array( 'rewloy-for-woocommerce.php', 'uninstall.php', 'readme.txt', 'LICENSE', 'src/Client.php', 'src/Issuer.php', 'src/autoload.php', 'languages/rewloy-for-woocommerce-tr_TR.mo', 'languages/rewloy-for-woocommerce-tr_TR.po', 'languages/rewloy-for-woocommerce.pot', 'assets/till.js', 'assets/watch.js', 'assets/panel.css', 'src/Till.php', 'src/Ajax.php' ) as $f ) {
 			$this->assertContains( 'rewloy-for-woocommerce/' . $f, $files );
 		}
 		foreach ( $files as $f ) {

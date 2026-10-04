@@ -3,7 +3,7 @@
 **WooCommerce mağazanızın siparişleri Rewloy sadakat kartlarını doldursun.**
 
 > **Durum: önizleme (0.x): yayımlanmadı.** Eklentinin henüz yayımlanmış bir sürümü
-> yok; WordPress.org dizininde de değil. Kod burada. **0.2.2** PHPUnit'le denendi; 0.1.0
+> yok; WordPress.org dizininde de değil. Kod burada. **0.3.0** PHPUnit'le denendi; 0.1.0
 > ayrıca gerçek bir WordPress 7.1 + WooCommerce 11.1'de sahte bir Rewloy API'siyle
 > ([docs/VERIFIED.md](docs/VERIFIED.md)). Gerçek Rewloy'a karşı henüz denenmedi.
 > WooCommerce mağazanızı Rewloy'a **bugün eklentisiz de bağlayabilirsiniz**; yolu aşağıda.
@@ -16,9 +16,26 @@ Cüzdan'da, her yerde web kartında açılır. Kasada QR okutulur. Online satı�
 
 ## Eklenti ne yapar
 
+- **WordPress'te küçük bir Rewloy paneli (0.3.0).** Üst menüde **Rewloy**, dört sekme:
+  - *Özet*: bağlı kart ve işletme, bağlantının sağlığı, son siparişler ve kartın son 30
+    günlük sayıları, her biri neyi saydığıyla (açık kartlar, verilen kartlar, ziyaretler,
+    kullanılan ödüller);
+  - *Kartlar*: müşterilerin kartlarındaki son işlemler (ne, ne zaman, nerede; kart son 4
+    karakteriyle), sekme açıkken 30 saniyede bir yenilenir; numarayla kart sorgulama;
+  - *Kasa*: kartı numarasıyla ya da USB/Bluetooth okuyucuyla okutma, şube uyarıları,
+    **satış** (tutar ve fiş numarası) ve kartın kendi işlemleri (ödül, bakiye, kupon),
+    harcayanlar onay ister; yalnız bir şubede;
+  - *Ayarlar*: bağlantı ve seçenekler, eskisi gibi (WooCommerce › Rewloy de buraya açılır).
+
+  Eklentinin neler yapabileceğini Rewloy söyler (`GET /v1/me`): **Görüntüleme**
+  (varsayılan açık) ve **Kasa** (varsayılan kapalı) Rewloy panelinde, bağlantının
+  sayfasındaki "WordPress yetkileri"nden açılıp kapanır, hemen uygulanır. Kart
+  oluşturmak ve tasarlamak, kampanyalar, ekip ve fatura Rewloy panelinde kalır; eklenti
+  tam sayfasına bağlantı verir. WordPress'te hiçbir müşterinin adı, e-postası ya da
+  telefonu görünmez; API anahtarı tarayıcıya hiç ulaşmaz.
 - **Kodla tek adımda bağlanma.** Rewloy panelinde kartı ve kuralı seçip tek
-  kullanımlık bir **bağlantı kodu** alırsınız (15 dakika geçerli); WooCommerce ›
-  Rewloy ekranına yapıştırıp **Bağla**'ya basarsınız. Rewloy'daki bağlantıyı ve
+  kullanımlık bir **bağlantı kodu** alırsınız (15 dakika geçerli); Rewloy › Ayarlar
+  ekranına yapıştırıp **Bağla**'ya basarsınız. Rewloy'daki bağlantıyı ve
   WooCommerce webhook'unu eklenti kurar ve yalnız bu mağazanın bağlantısıyla
   çalışabilen bir API anahtarı saklar: **kendi API anahtarınıza gerek yok**, mağazada
   güçlü bir anahtar durmaz. API anahtarıyla bağlanmak, betikle kurulan siteler için
@@ -65,7 +82,9 @@ WordPress.org'da yayımlanana kadar:
    (önerilen)"**: kartı ve kuralı seçin, şifrenizi yeniden girin. Rewloy size
    `rwc_…` ile başlayan tek kullanımlık bir kod verir; kod yalnız bir kez gösterilir
    ve 15 dakika geçerlidir.
-4. **WooCommerce › Rewloy** ekranına kodu yapıştırıp **Bağla**'ya basın.
+4. **Rewloy › Ayarlar** (ya da WooCommerce › Rewloy) ekranına kodu yapıştırıp **Bağla**'ya basın.
+5. Kasayı kullanacaksanız Rewloy panelinde bağlantının sayfasında **WordPress yetkileri**
+   bölümünden Kasa'yı bir şubede açın (nedeni ve şifrenizle).
 
 Anahtar ekranda bir daha gösterilmez; yalnız `rwk_` ve Rewloy'un kendi listelerinde
 yazdığı gizli olmayan 10 karakter görünür. Kod hiçbir yere kaydedilmez.
@@ -94,12 +113,13 @@ Eklenti yalnız Rewloy'a (`https://app.rewloy.com`) veri gönderir.
 | Yönetirken | O anahtar (her çağrıda yetki başlığı olarak). Yanıt: bağlantının durumu, mağazadan son istek ve sonucu, son siparişlerin numarası, sonucu ve zamanı. API anahtarıyla bağlandıysanız ayrıca seçtiğiniz kart ve kural. |
 | Her sipariş güncellemesinde (WooCommerce webhook'u) | Siparişin **numarası, durumu, para birimi ve tutarı**; **fatura e-postası** yalnız sipariş *işleniyor* ya da *tamamlandı* olduğunda. Yalnız mağazanın ve Rewloy'un bildiği bir sırla imzalı. Ad, adres, telefon ve ürünler **gitmez**: eklenti webhook'un içeriğini bu alanlara indirir. Rewloy e-postayı yalnız mevcut kartı bulmak, tutarı yalnız hesaplamak için okur; sipariş numarasını, sonucunu ve zamanını saklar. |
 | Davet açıksa ve alıcı kutuyu işaretlediyse, sipariş ödenince | Fatura e-postası, kart açmak için; yanında aydınlatma metninin sunulduğu beyanı, siparişin numarası ve bağlantının kimliği (sipariş karta sayılsın diye). Yanıt belirsizse aynı istek aynı anahtarla yinelenir. Sipariş karttan önce Rewloy'a ulaşmışsa WooCommerce siparişi webhook'undan yeniden teslim eder (yukarıdaki satır). |
+| Rewloy menüsü: Kartlar ve Kasa (yalnız `manage_woocommerce`) | Yazılan ya da okutulan **kart numarası** (okutulan kart bağlantısının geri kalanı, özel `k` anahtarı dahil, hemen atılır, hiçbir yere yazılmaz); kasada **ödenen toplam**, **fiş numarası** ve kasanın şubesi. Yanıt: kartın durumu ve son işlemler; hiçbir kişinin adı, e-postası ya da telefonu gelmez. Çağrıları tarayıcı değil WordPress yapar. |
 | Hesabım sekmesi | Hiçbir şey. |
 
 Müşterilerinizi, sipariş e-postası ve tutarının kart eşleştirmesi için Rewloy'a
 iletildiği konusunda aydınlatmak sizin yükümlülüğünüzdür; ödeme sayfasındaki kutu
 katılım formunun veri sorumlusu notunu işletmenizin adıyla gösterir
-(WooCommerce › Rewloy'da ad ve iletişim e-postası girilir). Ayrıntılar:
+(Rewloy › Ayarlar'da ad ve iletişim e-postası girilir). Ayrıntılar:
 [aydınlatma metni](https://rewloy.com/gizlilik), [koşullar](https://rewloy.com/kosullar).
 
 **Eklentiyi silmek** ayarlarını ve webhook'unu bu siteden kaldırır. Rewloy'daki
@@ -202,7 +222,7 @@ sipariş, sonucuyla birlikte panelde bağlantının kendi sayfasında görünür
 **Let your WooCommerce shop's orders fill Rewloy loyalty cards.**
 
 **Status: preview (0.x): not published.** There is no release yet, and it is not on
-WordPress.org. The code is here. **0.2.2** has been tested with PHPUnit; 0.1.0 was also run on
+WordPress.org. The code is here. **0.3.0** has been tested with PHPUnit; 0.1.0 was also run on
 a real WordPress 7.1 and WooCommerce 11.1 against a local fake of the Rewloy API
 ([docs/VERIFIED.md](docs/VERIFIED.md)). Neither has been run against the real Rewloy.
 
@@ -217,9 +237,21 @@ Rewloy stores only the order number, its outcome and the time.
 
 ### What the plugin does
 
+- **A small Rewloy panel in WordPress (0.3.0).** A top-level **Rewloy** menu with four
+  tabs: *Overview* (the card, the business, the link's health, the last orders, the
+  card's numbers for 30 days, each named by what it counts), *Cards* (the latest activity
+  on customers' cards, a card by its last four characters, refreshed every 30 seconds;
+  a card lookup), *Till* (read a card typed or scanned, record a sale with its receipt
+  number, use the card's rewards and balance, at one branch) and *Settings* (as before;
+  WooCommerce › Rewloy still opens it). Rewloy says what the plugin may do (`GET /v1/me`):
+  "Görüntüleme" (on by default) and the till (off by default) are turned on and off in
+  the Rewloy panel on the shop link's page, at once. Creating and designing cards,
+  campaigns, the team and billing stay in the Rewloy panel, one exact link away. No
+  customer's name, e-mail or phone shows in WordPress, and the key never reaches the
+  browser.
 - **Connect in one step, with a code.** In the Rewloy panel you choose the card and the
-  rule and get a one-time **connect code** (15 minutes); paste it under WooCommerce ›
-  Rewloy and press *Bağla* (Connect). The plugin creates the link in Rewloy and the
+  rule and get a one-time **connect code** (15 minutes); paste it under Rewloy ›
+  Settings and press *Bağla* (Connect). The plugin creates the link in Rewloy and the
   WooCommerce webhook itself and keeps an API key that can work with that link only:
   **you need no API key of your own**, and no strong key stays on the shop. An API key
   remains as an *advanced* option for sites set up from a script.
@@ -252,7 +284,8 @@ Until it is on WordPress.org: take the zip from this repository's Releases (once
 first one is published) or build it with `composer install && bin/build-zip`, upload it
 under Plugins › Add New › Upload Plugin, activate it, and in the Rewloy panel go to
 E-ticaret › Mağaza bağla › WooCommerce › "Rewloy eklentisiyle", choose the card and the
-rule and take the code. Open WooCommerce › Rewloy, paste it, press Connect. The key the
+rule and take the code. Open Rewloy › Settings, paste it, press Connect. For the till,
+turn it on with its branch in the Rewloy panel, on the link's page ("WordPress yetkileri"). The key the
 code makes is never shown back, only `rwk_` and its ten public characters; the code is
 kept nowhere.
 
@@ -272,7 +305,10 @@ completed, signed with a secret (the plugin cuts the webhook's body down to thos
 fields: no names, addresses, phone numbers or items); if
 you turn the invitation on, the billing e-mail of an order whose box was ticked, with the
 order's number and the link's id (a repeat with the same key if the answer was unclear).
-The My Account tab sends nothing. Deleting the plugin removes its options and webhook
+On the Rewloy menu's Cards and Till tabs: the card number typed or scanned (the rest of a
+scanned card link, its private key included, is dropped at once), and on the till the paid
+total, the receipt number and the till's branch; Rewloy sends back no one's name, e-mail or
+phone. The My Account tab sends nothing. Deleting the plugin removes its options and webhook
 from your site and deletes nothing in Rewloy. As the shop you must inform your
 customers that order e-mails and totals go to Rewloy for matching.
 

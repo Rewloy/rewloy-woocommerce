@@ -4,6 +4,21 @@ Two runs are written here. **0.2.0 against the real Rewloy application** (runnin
 first; it is the one that matters for what 0.2.0 added. After it, unchanged, the **0.1.0 run against
 a fake Rewloy**, which is what checked activation, the checkout boxes, My Account, uninstall and Turkish.
 
+# 0.3.0: the Rewloy menu
+
+Run on 4 October 2026. Three parts, because the local WordPress is connected to the **production**
+Rewloy (where no write may be made from a check) and production did not yet have ADR 178.
+
+| What | How | Result |
+|---|---|---|
+| The till and the reads against the real Rewloy | Rewloy's `wp-panel` branch (ADR 178) run from its worktree on `localhost:3722` with a throwaway test database; a business with two branches, a code with "Görüntüleme" and "Kasa" at one branch, spent by `connectShop`. The plugin's own `Panel` and `Till` classes driven from PHP with `wp_remote_request` over curl (WordPress functions shimmed) | `me` gave `view`, `till` and the branch; the 30-day numbers; a sale wrote a stamp with the press's UUID as the key and the receipt in `reference`; the same press again answered "already recorded"; seven sales then `redeem-stamps` refused as "not ready" (7/8); `load` never sent; activity masked to `••••-••••-26UG`, "Integration (API key)"; the customer's e-mail and name and the owner's e-mail in nothing the plugin received or sent; no `?k=` anywhere |
+| `assets/till.js` | the real `Screens::till()` markup with WordPress's admin styles and a mocked admin-ajax, in Chromium at desktop and 375 px | a scanned `https://rewloy.com/p/…?k=…` left only the number in the field and sent only the number; a sale with no answer offered "Tekrar dene", which resent the same key and body; the next press had a new key; no horizontal scroll at 375 px |
+| The screens in the real WordPress | the 0.3.0 zip installed in the local WordPress 7.1.2 / WooCommerce 11.1.2 (Turkish), connected to production Rewloy (read-only calls only: `me`, `getShop`, `listShopOrders`) | Özet, Kartlar, Kasa and Ayarlar render at desktop and 375 px with no horizontal scroll; the menu and WooCommerce › Rewloy (now a link to Ayarlar) both work; production's `me` names no abilities, so Kartlar and Kasa say they are off and link to the shop link's page, as a shop connected before 0.3.0 should |
+
+Not run: the Kartlar refresh and the till in the real WordPress against a Rewloy that grants the
+abilities (they need production on ADR 178, or a second WordPress pointed at a local Rewloy with
+`REWLOY_API_URL` on a https or localhost origin the container can reach).
+
 # 0.2.0 against the real Rewloy
 
 Run on 4 October 2026, plugin at `e6faab4` plus the two fixes below. The 0.2.0 code had run only

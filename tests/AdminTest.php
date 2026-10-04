@@ -54,12 +54,14 @@ final class AdminTest extends TestCase {
 		Functions\when( 'checked' )->alias( static fn( $a, $b = true, $echo = true ) => $a == $b ? ' checked="checked"' : '' );
 		Functions\when( 'wp_date' )->alias( static fn( string $f, int $ts ) => gmdate( 'd.m.Y H:i', $ts ) );
 		Functions\when( 'plugin_basename' )->justReturn( 'rewloy-for-woocommerce/rewloy-for-woocommerce.php' );
+		Functions\when( 'sanitize_key' )->alias( static fn( $k ) => preg_replace( '/[^a-z0-9_\-]/', '', strtolower( (string) $k ) ) );
 		$_POST = array();
 	}
 
 	protected function tearDown(): void {
 		unset( $_SERVER['REQUEST_METHOD'] );
 		$_POST = array();
+		$_GET  = array();
 		parent::tearDown();
 	}
 
@@ -75,7 +77,9 @@ final class AdminTest extends TestCase {
 		);
 	}
 
-	private function render( Admin $a ): string {
+	/** The Ayarlar tab (the 0.2 screen), unless a test asks for another. */
+	private function render( Admin $a, string $tab = 'settings' ): string {
+		$_GET['tab'] = $tab;
 		ob_start();
 		try {
 			$a->render();
@@ -143,10 +147,32 @@ final class AdminTest extends TestCase {
 		$this->assertSame( $before, $this->options );
 	}
 
-	public function test_the_capability_is_manage_woocommerce_and_the_screen_is_a_woocommerce_submenu(): void {
+	public function test_the_capability_is_manage_woocommerce_and_the_menu_is_top_level_with_the_old_woocommerce_entry_kept(): void {
 		$this->assertSame( 'manage_woocommerce', Admin::CAPABILITY );
-		Functions\expect( 'add_submenu_page' )->once()->with( 'woocommerce', \Mockery::type( 'string' ), \Mockery::type( 'string' ), 'manage_woocommerce', 'rewloy-for-woocommerce', \Mockery::type( 'array' ) );
+		$menus = array();
+		$subs  = array();
+		Functions\when( 'add_menu_page' )->alias(
+			function ( ...$args ) use ( &$menus ): string {
+				$menus[] = $args;
+				return 'toplevel_page_rewloy-for-woocommerce';
+			}
+		);
+		Functions\when( 'add_submenu_page' )->alias(
+			function ( ...$args ) use ( &$subs ): string {
+				$subs[] = $args;
+				return '';
+			}
+		);
 		$this->admin()->add_menu();
+		$this->assertCount( 1, $menus );
+		$this->assertSame( array( 'manage_woocommerce', 'rewloy-for-woocommerce' ), array( $menus[0][2], $menus[0][3] ), 'the page keeps the slug it had as a submenu' );
+		foreach ( $subs as $sub ) {
+			$this->assertSame( 'manage_woocommerce', $sub[3] );
+		}
+		$slugs = array_map( static fn( array $sub ): string => $sub[0] . ' ' . $sub[4], $subs );
+		$this->assertContains( 'woocommerce admin.php?page=rewloy-for-woocommerce&tab=settings', $slugs, 'WooCommerce › Rewloy still opens the settings' );
+		$this->assertContains( 'rewloy-for-woocommerce admin.php?page=rewloy-for-woocommerce&tab=till', $slugs );
+		$this->assertContains( 'rewloy-for-woocommerce admin.php?page=rewloy-for-woocommerce&tab=cards', $slugs );
 	}
 
 	public function test_the_screen_itself_needs_the_capability(): void {
@@ -167,7 +193,7 @@ final class AdminTest extends TestCase {
 		);
 		$admin->handle_save_key();
 		$this->assertSame( self::KEY, $this->options[ Settings::KEY_OPTION ] );
-		$this->assertSame( array( 'https://shop.example.com/wp-admin/admin.php?page=rewloy-for-woocommerce' ), $this->redirects );
+		$this->assertSame( array( 'https://shop.example.com/wp-admin/admin.php?page=rewloy-for-woocommerce&tab=settings' ), $this->redirects );
 		$flash = $this->transients['rewloy_wc_flash_7'];
 		$this->assertTrue( $flash['ok'] );
 		$this->assertStringNotContainsString( 'SECRET', (string) json_encode( $flash ) );
@@ -251,7 +277,7 @@ final class AdminTest extends TestCase {
 		$this->assertSame( array( 'token' => self::CODE, 'shopName' => 'Örnek Mağaza' ), json_decode( $this->requests[0]['args']['body'], true ) );
 		$this->assertTrue( $this->settings->is_connected() );
 		$this->assertSame( self::PLUGIN_KEY, $this->options[ Settings::KEY_OPTION ] );
-		$this->assertSame( array( 'https://shop.example.com/wp-admin/admin.php?page=rewloy-for-woocommerce' ), $this->redirects );
+		$this->assertSame( array( 'https://shop.example.com/wp-admin/admin.php?page=rewloy-for-woocommerce&tab=settings' ), $this->redirects );
 		$flash = (string) json_encode( $this->transients['rewloy_wc_flash_7'] );
 		$this->assertStringNotContainsString( 'ABCDEFGH', $flash );
 		$this->assertStringNotContainsString( 'SECRET', $flash );

@@ -226,6 +226,78 @@ abstract class TestCase extends PhpUnitTestCase {
 		);
 	}
 
+	/** A branch of the business, where the till is opened. */
+	public const BRANCH = '0192cccc-5c6d-7e8f-9a0b-1c2d3e4f5a6b';
+	/** A card number, as Rewloy writes it. */
+	public const SERIAL = 'ABCD-EFGH-JKLM';
+
+	/**
+	 * The answer of `me` for this site's plugin key, with the abilities the Rewloy panel gave it (0.3.0).
+	 *
+	 * @param list<string> $abilities `view`, `till`.
+	 */
+	protected function meAbilities( array $abilities, string $till = self::BRANCH ): array {
+		$has = in_array( 'till', $abilities, true );
+		return $this->answer(
+			200,
+			array(
+				'data' => array(
+					'kind'        => 'key',
+					'key'         => array( 'id' => self::LINK, 'name' => 'WooCommerce · Örnek', 'prefix' => '0a1b2c3d4e', 'role' => 'E-ticaret', 'scope' => 'Tüm şubeler', 'expiresAt' => null, 'rateLimitPerMinute' => 600, 'shopId' => self::LINK,
+						'abilities' => $abilities, 'tillLocationId' => $has ? $till : null, 'tillLocationName' => $has ? 'Moda' : null ),
+					'business'    => array( 'id' => self::PROGRAM, 'name' => 'Örnek Kafe' ),
+					'permissions' => array( 'passes.issue', 'programs.read', 'shops.manage', 'shops.read' ),
+					'mode'        => 'live',
+				),
+			)
+		);
+	}
+
+	/** The answer of `getPass` for a stamp card of the connected programme. */
+	protected function passAnswer( array $over = array() ): array {
+		return $this->answer(
+			200,
+			array(
+				'data' => array_merge(
+					array(
+						'serial'        => self::SERIAL,
+						'programId'     => self::PROGRAM,
+						'type'          => 'stamp',
+						'status'        => 'active',
+						'balance'       => 8,
+						'progressLabel' => 'stamps',
+						'progressValue' => '8/8',
+						'rewardReady'   => true,
+						'rewardsReady'  => 1,
+						'tier'          => null,
+						'updatedAt'     => '2026-10-04T10:00:00.000Z',
+						'actions'       => array(
+							array( 'action' => 'earn-stamps', 'needs' => array(), 'ready' => true ),
+							array( 'action' => 'redeem-stamps', 'needs' => array(), 'ready' => true ),
+						),
+						'sale'          => array( 'writes' => 'stamps' ),
+					),
+					$over
+				),
+			)
+		);
+	}
+
+	/** The answer of `getPassTill` at the till's branch. */
+	protected function tillAnswer( bool $allowed = true, array $notices = array() ): array {
+		return $this->answer(
+			200,
+			array(
+				'data' => array(
+					'allowed'   => $allowed,
+					'branches'  => null,
+					'promotion' => null,
+					'notices'   => $notices,
+				),
+			)
+		);
+	}
+
 	/** The answer of `connectShop`: the link, its secret, and the key bound to it. */
 	protected function connectAnswer( array $over = array(), array $key = array() ): array {
 		return $this->answer(

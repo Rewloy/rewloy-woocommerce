@@ -13,7 +13,7 @@ defined( 'ABSPATH' ) || exit;
 
 final class Plugin {
 
-	public const VERSION = '0.2.2';
+	public const VERSION = '0.3.0';
 	/** Set when the My Account tab is turned on or off, so the rewrite rules are flushed once. */
 	public const FLUSH_OPTION = 'rewloy_wc_flush_rewrite';
 	public const TEXT_DOMAIN  = 'rewloy-for-woocommerce';
@@ -54,7 +54,9 @@ final class Plugin {
 		( new Checkout( $settings, $issuer ) )->register();
 		( new Account( $settings ) )->register();
 		if ( is_admin() ) {
-			( new Admin( $settings, new Connection( $settings, $webhooks, $factory ) ) )->register();
+			$panel = new Panel( $settings, $factory, Links::for_site() );
+			( new Admin( $settings, new Connection( $settings, $webhooks, $factory ), null, $panel ) )->register();
+			( new Ajax( $panel, new Till( $panel ) ) )->register();
 		}
 	}
 

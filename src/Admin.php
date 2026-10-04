@@ -1,11 +1,11 @@
 <?php
 /**
- * The settings screen: WooCommerce › Rewloy.
+ * The "Rewloy" admin menu (0.3.0): a top-level menu with four tabs — Özet, Kartlar, Kasa (Screens.php) and Ayarlar,
+ * the connection and options screen that was WooCommerce › Rewloy until 0.2 and behaves as it did. The old
+ * WooCommerce › Rewloy entry stays and opens Ayarlar, so existing users find it.
  *
- * It is a submenu of WooCommerce, not a tab of WooCommerce › Settings, because
- * the screen has several independent actions (connect with a code, save a key,
- * connect, pause, disconnect, save the options), each with its own nonce, and
- * WooCommerce's settings tabs are one form with one Save button.
+ * Ayarlar has several independent actions (connect with a code, save a key, connect, pause, disconnect, save the
+ * options), each with its own nonce: WooCommerce's settings tabs are one form with one Save button.
  *
  * Every action: `manage_woocommerce`, then the nonce, then sanitised input;
  * every output escaped. The API key and the connect code are never printed
@@ -24,38 +24,180 @@ final class Admin {
 
 	public const PAGE       = 'rewloy-for-woocommerce';
 	public const CAPABILITY = 'manage_woocommerce';
+	/** The tabs, in their order. */
+	public const TABS = array( 'overview', 'cards', 'till', 'settings' );
 
 	/** @var callable(string): void */
 	private $redirect;
+	private ?Screens $screens;
+	private ?Panel $panel;
 
 	/**
 	 * @param Settings                      $settings   The saved settings.
-	 * @param Connection                    $connection What the screen does.
+	 * @param Connection                    $connection What the Ayarlar tab does.
 	 * @param (callable(string): void)|null $redirect   Replaces the redirect after an action (tests).
+	 * @param Panel|null                    $panel      The reads of the other tabs; made from the settings when null.
 	 */
-	public function __construct( private Settings $settings, private Connection $connection, ?callable $redirect = null ) {
+	public function __construct( private Settings $settings, private Connection $connection, ?callable $redirect = null, ?Panel $panel = null ) {
 		$this->redirect = $redirect ?? static function ( string $url ): void {
 			wp_safe_redirect( $url );
 			exit;
 		};
+		$this->panel   = $panel;
+		$this->screens = null;
+	}
+
+	private function panel(): Panel {
+		$this->panel ??= new Panel( $this->settings, Plugin::client_factory( $this->settings ), Links::for_site() );
+		return $this->panel;
+	}
+
+	private function screens(): Screens {
+		$this->screens ??= new Screens( $this->panel(), $this->connection );
+		return $this->screens;
 	}
 
 	public function register(): void {
 		add_action( 'admin_menu', array( $this, 'add_menu' ) );
+		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue' ) );
+		add_filter( 'submenu_file', array( $this, 'submenu_file' ), 10, 2 );
 		add_filter( 'plugin_action_links_' . plugin_basename( REWLOY_WC_FILE ), array( $this, 'action_links' ) );
 		foreach ( array( 'connect_code', 'save_key', 'forget_key', 'connect', 'toggle', 'disconnect', 'reactivate', 'save_options' ) as $action ) {
 			add_action( 'admin_post_rewloy_wc_' . $action, array( $this, 'handle_' . $action ) );
 		}
 	}
 
+	/**
+	 * The top-level "Rewloy" menu, its tabs as submenu entries, and the old WooCommerce › Rewloy entry, which now
+	 * opens Ayarlar. The page keeps the slug it had as a submenu, so old links and bookmarks still land on it.
+	 */
 	public function add_menu(): void {
-		add_submenu_page(
-			'woocommerce',
-			__( 'Rewloy for WooCommerce', 'rewloy-for-woocommerce' ),
+		add_menu_page(
+			__( 'Rewloy', 'rewloy-for-woocommerce' ),
 			__( 'Rewloy', 'rewloy-for-woocommerce' ),
 			self::CAPABILITY,
 			self::PAGE,
-			array( $this, 'render' )
+			array( $this, 'render' ),
+			'dashicons-tickets-alt',
+			56
+		);
+		add_submenu_page( self::PAGE, __( 'Rewloy', 'rewloy-for-woocommerce' ), self::tab_label( 'overview' ), self::CAPABILITY, self::PAGE, array( $this, 'render' ) );
+		foreach ( array( 'cards', 'till', 'settings' ) as $tab ) {
+			// A submenu entry whose slug is the tab's address, with no page of its own: WordPress links it as it is.
+			add_submenu_page( self::PAGE, __( 'Rewloy', 'rewloy-for-woocommerce' ), self::tab_label( $tab ), self::CAPABILITY, 'admin.php?page=' . self::PAGE . '&tab=' . $tab );
+		}
+		add_submenu_page( 'woocommerce', __( 'Rewloy', 'rewloy-for-woocommerce' ), __( 'Rewloy', 'rewloy-for-woocommerce' ), self::CAPABILITY, 'admin.php?page=' . self::PAGE . '&tab=settings' );
+	}
+
+	/**
+	 * Marks the open tab's entry in the Rewloy menu as current (WordPress would mark the first one on every tab).
+	 *
+	 * @param mixed $submenu_file The submenu entry WordPress marks.
+	 * @param mixed $parent_file  The menu it belongs to.
+	 * @return mixed
+	 */
+	public function submenu_file( $submenu_file, $parent_file = '' ) {
+		if ( self::PAGE !== $parent_file ) {
+			return $submenu_file;
+		}
+		$tab = $this->current_tab();
+		return 'overview' === $tab ? $submenu_file : 'admin.php?page=' . self::PAGE . '&tab=' . $tab;
+	}
+
+	/** A tab's name. */
+	public static function tab_label( string $tab ): string {
+		switch ( $tab ) {
+			case 'cards':
+				return __( 'Cards', 'rewloy-for-woocommerce' );
+			case 'till':
+				return __( 'Till', 'rewloy-for-woocommerce' );
+			case 'settings':
+				return __( 'Settings', 'rewloy-for-woocommerce' );
+			default:
+				return __( 'Overview', 'rewloy-for-woocommerce' );
+		}
+	}
+
+	/** A tab's address. */
+	public static function tab_url( string $tab ): string {
+		return admin_url( 'admin.php?page=' . self::PAGE . ( 'overview' === $tab ? '' : '&tab=' . ( in_array( $tab, self::TABS, true ) ? $tab : 'settings' ) ) );
+	}
+
+	/**
+	 * The tab asked for: one of TABS. Without a connection only Ayarlar has anything to show; with one, Özet is first.
+	 */
+	public function current_tab(): string {
+		if ( ! $this->settings->is_connected() ) {
+			return 'settings';
+		}
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- which tab to show; it changes nothing.
+		$tab = isset( $_GET['tab'] ) && is_string( $_GET['tab'] ) ? sanitize_key( wp_unslash( $_GET['tab'] ) ) : '';
+		return in_array( $tab, self::TABS, true ) ? $tab : 'overview';
+	}
+
+	/**
+	 * The two small scripts and the stylesheet, on this page only: the watching script on Kartlar, the till's on Kasa.
+	 * No build step, no CDN.
+	 *
+	 * @param mixed $hook_suffix The admin page being loaded.
+	 */
+	public function enqueue( $hook_suffix ): void {
+		if ( 'toplevel_page_' . self::PAGE !== $hook_suffix || ! current_user_can( self::CAPABILITY ) ) {
+			return;
+		}
+		wp_enqueue_style( 'rewloy-wc-panel', plugins_url( 'assets/panel.css', REWLOY_WC_FILE ), array(), Plugin::VERSION );
+		$tab    = $this->current_tab();
+		$script = array(
+			'cards' => 'watch',
+			'till'  => 'till',
+		)[ $tab ] ?? '';
+		if ( '' === $script ) {
+			return;
+		}
+		wp_enqueue_script( 'rewloy-wc-' . $script, plugins_url( 'assets/' . $script . '.js', REWLOY_WC_FILE ), array(), Plugin::VERSION, true );
+		wp_localize_script(
+			'rewloy-wc-' . $script,
+			'RewloyWc',
+			array(
+				'ajax'  => admin_url( 'admin-ajax.php' ),
+				'nonce' => wp_create_nonce( Ajax::NONCE ),
+				'every' => 30,
+				'text'  => self::script_text(),
+			)
+		);
+	}
+
+	/**
+	 * The scripts' words, translated here (the scripts carry none of their own).
+	 *
+	 * @return array<string,string>
+	 */
+	public static function script_text(): array {
+		return array(
+			'refreshed'   => __( 'Refreshed at', 'rewloy-for-woocommerce' ),
+			'empty'       => __( 'Nothing has happened on customers\' cards yet.', 'rewloy-for-woocommerce' ),
+			'offline'     => __( 'Rewloy could not be reached or its answer could not be read. Try again in a moment.', 'rewloy-for-woocommerce' ),
+			'notCard'     => __( 'That is not a Rewloy card number. Type the 12 letters and digits under the QR code, or scan the code.', 'rewloy-for-woocommerce' ),
+			'reading'     => __( 'Reading the card…', 'rewloy-for-woocommerce' ),
+			'sending'     => __( 'Sending to Rewloy…', 'rewloy-for-woocommerce' ),
+			'retry'       => __( 'Try again', 'rewloy-for-woocommerce' ),
+			'retryNote'   => __( 'No clear answer came. "Try again" sends the same press again; Rewloy never writes it twice.', 'rewloy-for-woocommerce' ),
+			'card'        => __( 'Card', 'rewloy-for-woocommerce' ),
+			'type'        => __( 'Type', 'rewloy-for-woocommerce' ),
+			'status'      => __( 'Status', 'rewloy-for-woocommerce' ),
+			'reward'      => __( 'Reward', 'rewloy-for-woocommerce' ),
+			'ready'       => __( 'Ready', 'rewloy-for-woocommerce' ),
+			'notYet'      => __( 'Not yet', 'rewloy-for-woocommerce' ),
+			'level'       => __( 'Level', 'rewloy-for-woocommerce' ),
+			'notHere'     => __( 'This card is not valid at this branch.', 'rewloy-for-woocommerce' ),
+			'operations'  => __( 'The card\'s own operations', 'rewloy-for-woocommerce' ),
+			'noneNow'     => __( 'None of the card\'s operations can be done right now.', 'rewloy-for-woocommerce' ),
+			'noView'      => __( 'The card\'s state and operations need "Görüntüleme", which is off for this shop; a sale can still be recorded.', 'rewloy-for-woocommerce' ),
+			'amount'      => __( 'Amount', 'rewloy-for-woocommerce' ),
+			'points'      => __( 'Points', 'rewloy-for-woocommerce' ),
+			'rewardNo'    => __( 'Reward number (from 0)', 'rewloy-for-woocommerce' ),
+			'confirm'     => __( 'This spends something of the customer\'s. Go ahead?', 'rewloy-for-woocommerce' ),
+			'customer'    => __( 'Open the customer in Rewloy', 'rewloy-for-woocommerce' ),
 		);
 	}
 
@@ -70,8 +212,9 @@ final class Admin {
 		return $links;
 	}
 
+	/** Where an Ayarlar action returns: the Ayarlar tab. */
 	public function url(): string {
-		return admin_url( 'admin.php?page=' . self::PAGE );
+		return self::tab_url( 'settings' );
 	}
 
 	/* ------------------------------------------------------------------ actions */
@@ -182,11 +325,54 @@ final class Admin {
 		if ( ! current_user_can( self::CAPABILITY ) ) {
 			wp_die( esc_html__( 'You are not allowed to do this.', 'rewloy-for-woocommerce' ), '', array( 'response' => 403 ) );
 		}
+		$tab = $this->current_tab();
 		echo '<div class="wrap rewloy-wc">';
-		echo '<h1>' . esc_html__( 'Rewloy for WooCommerce', 'rewloy-for-woocommerce' ) . '</h1>';
-		echo '<p>' . esc_html__( 'Paid orders fill the loyalty cards of Rewloy customers.', 'rewloy-for-woocommerce' ) . '</p>';
+		echo '<h1>' . esc_html__( 'Rewloy', 'rewloy-for-woocommerce' ) . '</h1>';
+		$this->tabs( $tab );
 		$this->flash();
+		switch ( $tab ) {
+			case 'overview':
+				$this->screens()->overview();
+				break;
+			case 'cards':
+				$this->screens()->cards( $this->posted_card() );
+				break;
+			case 'till':
+				$this->screens()->till();
+				break;
+			default:
+				$this->render_settings();
+		}
+		echo '</div>';
+	}
 
+	/** The tabs, WordPress's own nav-tab markup; only Ayarlar until the shop is connected. */
+	private function tabs( string $current ): void {
+		$tabs = $this->settings->is_connected() ? self::TABS : array( 'settings' );
+		echo '<nav class="nav-tab-wrapper wp-clearfix" aria-label="' . esc_attr__( 'Rewloy', 'rewloy-for-woocommerce' ) . '">';
+		foreach ( $tabs as $tab ) {
+			$on = $tab === $current;
+			echo '<a href="' . esc_url( self::tab_url( $tab ) ) . '" class="nav-tab' . ( $on ? ' nav-tab-active' : '' ) . '"' . ( $on ? ' aria-current="page"' : '' ) . '>' . esc_html( self::tab_label( $tab ) ) . '</a>';
+		}
+		echo '</nav>';
+	}
+
+	/**
+	 * A card number posted to the Kartlar lookup, after its nonce: '' when nothing was posted. A read, so a refused
+	 * nonce only stops the lookup.
+	 */
+	private function posted_card(): string {
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing -- checked right below before the value is used.
+		if ( ! isset( $_POST['rewloy_card'] ) || ! is_string( $_POST['rewloy_card'] ) ) {
+			return '';
+		}
+		check_admin_referer( 'rewloy_wc_card_lookup' );
+		return trim( sanitize_text_field( wp_unslash( $_POST['rewloy_card'] ) ) );
+	}
+
+	/** Ayarlar: the 0.2 screen, as it was. */
+	private function render_settings(): void {
+		echo '<p>' . esc_html__( 'Paid orders fill the loyalty cards of Rewloy customers.', 'rewloy-for-woocommerce' ) . '</p>';
 		if ( $this->settings->is_connected() ) {
 			$this->section_connected();
 			$this->section_options();
@@ -197,7 +383,6 @@ final class Admin {
 			$this->section_connect();
 		}
 		$this->section_privacy();
-		echo '</div>';
 	}
 
 	private function flash(): void {
@@ -449,6 +634,7 @@ final class Admin {
 		echo '<li>' . esc_html__( 'To connect with a code: the code and this site\'s title, which names the key in Rewloy\'s list of keys. To manage the connection afterwards: the key that came back (or your own API key), and the card and rule when you choose them.', 'rewloy-for-woocommerce' ) . '</li>';
 		echo '<li>' . esc_html__( 'For each order update, the webhook sends the order\'s number, status, currency and total, signed with a secret only this shop and Rewloy have, and the billing e-mail once the order is processing or completed. Nothing else of the order (no names, addresses, phone numbers or items). Rewloy stores only the order number, its outcome and the time.', 'rewloy-for-woocommerce' ) . '</li>';
 		echo '<li>' . esc_html__( 'If you turn on the invitation, the billing e-mail of an order whose box was ticked is sent once, to open the card.', 'rewloy-for-woocommerce' ) . '</li>';
+		echo '<li>' . esc_html__( 'On the Cards and Till tabs: the card number typed or scanned (only the number: the rest of a scanned card link, its private key included, is dropped at once), and on the till the paid total and the receipt number typed there. Rewloy sends this site no customer\'s name, e-mail or phone, and the screens show none.', 'rewloy-for-woocommerce' ) . '</li>';
 		echo '<li>' . esc_html__( 'Nothing else, and no tracking. The My Account tab sends nothing.', 'rewloy-for-woocommerce' ) . '</li>';
 		echo '</ul>';
 		echo '<p class="description">' . esc_html__( 'Deleting this plugin removes its settings, its key and its webhook from this site. It does not delete anything in Rewloy: the link, the key a connect code made and the cards stay until you delete them in the Rewloy panel (deleting the link revokes the key).', 'rewloy-for-woocommerce' ) . '</p>';

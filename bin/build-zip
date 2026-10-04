@@ -31,7 +31,7 @@ stage=$(mktemp -d)
 trap 'rm -rf "$stage"' EXIT
 mkdir -p "$stage/$slug"
 cp "$slug.php" uninstall.php readme.txt LICENSE "$stage/$slug/"
-cp -R src languages "$stage/$slug/"
+cp -R src languages assets "$stage/$slug/"
 find "$stage" -name '.DS_Store' -delete
 
 mkdir -p "$out"
