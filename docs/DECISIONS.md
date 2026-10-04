@@ -238,7 +238,7 @@ the plugin with `szepeviktor/phpstan-wordpress` and `php-stubs/woocommerce-stubs
 describe). Static tests pin what the brief demands: every file guards against direct
 access, no network function outside the Client, no `eval`/`exec`-like call, only
 rewloy.com hosts in the code, no `get_post_meta`-style call (HPOS), every
-translatable string uses the text domain. 0.2.0: 288 tests (199 in 0.1.0). The new ones are
+translatable string uses the text domain. 0.2.0: 295 tests (199 in 0.1.0). The new ones are
 in `ConnectionTest` (the code flow, its undo and its unclear outcomes, the key check),
 `ClientTest` and `RetryTest` (the keyless client, keyed retries, replay), `IssuerTest` (the
 schedule, the fingerprint, the window, `resend`; the Action Scheduler calls in a separate
@@ -496,6 +496,18 @@ permanent claim rows 0.1 left are plain locks now and are taken over once older 
 minutes (uninstall still removes every row with the prefix). An order 0.1 left `unknown` has no
 record of its request, so 0.2 never repeats it, which is 0.1's own promise kept.
 
+**D35. A connect-code key Rewloy no longer accepts means the link is gone.** (Found by the run
+against the real Rewloy, VERIFIED.md.) Rewloy revokes the key a code made together with its link,
+so when the link is deleted in the panel the key stops working and the plugin cannot even delete
+the link it no longer has. The screen used to say "check that the key is complete", and so did
+the removal; the one button that works (forget the connection on this site only) stayed folded.
+For a connection made by a code (`via = code`) a refused key (`INVALID_API_KEY`) now says the
+link was probably deleted in the panel and names that button, in the health message and in the
+failed removal, and the fold that holds the button is open. A key made by hand keeps the plain
+message: it has no tie to the link, and a refusal there may be anything. Nothing is forgotten
+automatically: the same refusal also fits a key revoked on its own while the link stays, and then
+the person must delete the link in the panel.
+
 **What the platform could still add** (for the next brief): `listShopOrders` filterable by
 `orderId` (or an `order` in `getPass`), so the plugin could check an `unknown` order against
 Rewloy before repeating it and not only trust the key; a way to read a connect answer again
@@ -505,19 +517,14 @@ way to ask whether a key is still remembered.
 
 ## Still not verified
 
-- Anything against the real Rewloy: its https host, that it accepts the trimmed body (the
-  fake verifies the signature the way `handleOrder` is written: HMAC-SHA256, base64, over
-  the raw bytes, which is not the same as the real service), and, new in 0.2.0, the whole
-  of D27 to D32: spending a code, the key it returns, replay on the key, `order.result`.
-  The 0.2.0 code was written from Rewloy's `docs/API.md` and `src/api/v1/business.ts`,
-  `cards.ts` and `auth.ts` and run only under PHPUnit; no real call was made.
-- On a real WordPress, new in 0.2.0: that `WC_Webhook::process( $order_id )` queues the
-  delivery of an order that is already `processing` or `completed` (D30), and that
-  `as_schedule_single_action` with `unique = true` behaves as D29 says. docs/VERIFIED.md
-  describes the 0.1.0 run and says what 0.2.0 still needs.
+- The real Rewloy was run locally for 0.2.0 (docs/VERIFIED.md): spending a code, the key, replay,
+  `order.result`, resend, health, the test environment. What stays unverified there: Rewloy's
+  production host (`https://app.rewloy.com`, a run cannot reach it without a real code), the real
+  card links (the local Rewloy was told its public origin is `https://rewloy.com` so that the plugin's
+  link allowlist accepted them), and Rewloy's behaviour after seven days (the replay window).
 - WordPress below 7.1 and WooCommerce below 11.1 (the declared minimums are 6.4 and 8.0);
   PHP 8.1 at run time (the code is only syntax-checked there); multisite.
-- A real mail transport (the run caught `wp_mail` calls), and Action Scheduler's own
-  async runner (the queue was run with WP-CLI; the container could not loop back to
-  itself).
+- A real mail transport (the runs caught `wp_mail` calls). Action Scheduler ran from WP-Cron (about
+  a minute after an order) and from WP-CLI; its admin-ajax async runner did not fire for the
+  front-end checkout requests and was not exercised.
 - Browsers other than the embedded Chromium; locales other than `tr_TR` and `en_US`.

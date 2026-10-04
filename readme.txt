@@ -111,6 +111,7 @@ Türkçe özet: Eklenti yalnız Rewloy'a veri gönderir (bağlanırken bağlant�
 * Once per order on Rewloy's own idempotency: every request carries the order's key, the order and the link; an unclear answer is asked again with the same key (automatically, then from the order's action list) and the card link is e-mailed when it comes. The permanent locks are gone; the one-e-mail-one-card rule stays.
 * An order that reached Rewloy before its card is delivered again through its webhook, so it counts toward the card.
 * Health on the screen: the last request from the shop and its result, the last refused request, the key Rewloy lists for the link. A test environment's key is said to be one.
+* Checked against the real Rewloy: a repeat of an unclear answer is now really scheduled, and a link deleted in the Rewloy panel is explained on the screen with the way out opened.
 * Turkish for every new string.
 
 = 0.1.0 =

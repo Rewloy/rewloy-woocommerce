@@ -1,19 +1,207 @@
 # Verified on a real WordPress
 
-> **This run is of 0.1.0.** Version 0.2.0 (connect code, idempotent issue, re-delivery, health;
-> DECISIONS.md D27 to D34) has run only under PHPUnit. Still to run on a real WordPress, and
-> why each could differ from the stubs:
->
-> 1. **`WC_Webhook::process( $order_id )` for an order that is already `processing` or
->    `completed`** (D30): that WooCommerce queues the delivery, signs it and cuts the body
->    through `woocommerce_webhook_payload`, as for a real update. Unit tests use a double.
-> 2. **`as_schedule_single_action( ..., unique = true )` and `as_unschedule_action`** (D29): that a
->    repeat of an unclear answer runs at its time and that a settled order's pending action is
->    cancelled. The check-6 style run (`wp action-scheduler run`) is the way.
-> 3. **Against the real Rewloy**: spending a code, the key it returns, the replay on the key and
->    `order.result`. The fake of this document does not know them; a fake that does would
->    still be a fake. This needs a code made in a Rewloy test environment (`rwk_test_`).
-> 4. The connect screen and the new health rows in a browser, in `en_US` and `tr_TR`.
+Two runs are written here. **0.2.0 against the real Rewloy application** (running locally) comes
+first; it is the one that matters for what 0.2.0 added. After it, unchanged, the **0.1.0 run against
+a fake Rewloy**, which is what checked activation, the checkout boxes, My Account, uninstall and Turkish.
+
+# 0.2.0 against the real Rewloy
+
+Run on 4 October 2026, plugin at `e6faab4` plus the two fixes below. The 0.2.0 code had run only
+under PHPUnit before; the list of what it had never met (spending a real connect code, replay on the
+key, `order.result` and resend, `WC_Webhook::process` for an already-paid order, Action Scheduler's
+calls, the new screens) is what this run was for. Every item of that list ran.
+
+## Environment
+
+| | |
+|---|---|
+| Rewloy | the real application, `main` at `96ae347` (ADR 174/175), run from source in a temporary git worktree: `node --experimental-strip-types src/app/main.ts`, `PORT=3719`, a throwaway Postgres 17 database made by `scripts/testdb.ts`, no mail provider. Nothing in the Rewloy repository was changed |
+| Business | a live business "E2E Kafe" (plan Business: `ecommerce` and `api`), a points programme (rule: per 100 TRY, 2 points) and a stamp programme, a customer with a card in both; its **test environment** (`" · Test"`, ADR 173) opened by `openTestBusiness`, with a points programme and one customer with a card |
+| Codes | made the way the panel's route does: `POST /v1/shops/connect-tokens` with the owner's staff session and password (a code per scenario: 15 minutes each) |
+| WordPress | 7.1.2 (`wordpress:latest`, Apache), WooCommerce 11.1.2, PHP 8.3.35, MariaDB 11, Twenty Twenty-Five, `WP_DEBUG` and `WP_DEBUG_LOG` on |
+| Orders storage | HPOS on with compatibility mode |
+| Plugin | the zip of `bin/build-zip` installed with `wp plugin install` |
+| Browser | the embedded Chromium: the admin screen (every connect, pause, resume, disconnect and the options), and the real block checkout with the box ticked |
+| Locale | `en_US`, then `tr_TR` (WordPress and WooCommerce language packs) |
+
+How the plugin was pointed at the local Rewloy, and what that cost:
+
+- `define( 'REWLOY_API_URL', 'http://localhost' )` (the plugin's one sanctioned override). The plugin
+  refuses a delivery address with a port (`Connection::is_delivery_url`), and Rewloy builds that address
+  from `APP_ORIGIN`, so `APP_ORIGIN=http://localhost` and Apache inside the WordPress container answers
+  on port 80 and proxies `/v1` and `/hooks` to the host's `host.docker.internal:3719` (that name works
+  under Colima). Apache also listens on 8089 inside the container so that WordPress can loop back to
+  its own public address.
+- The plugin only mails a card link on `https://*.rewloy.com` (`Settings::is_rewloy_url`), and Rewloy
+  builds `cardUrl` from `SITE_ORIGIN`, so the local Rewloy was started with `SITE_ORIGIN=https://rewloy.com`
+  (a string; nothing was ever sent to it). The real production host was therefore not exercised.
+- WooCommerce delivers webhooks with `wp_safe_remote_request`, which refuses local addresses: the same
+  must-use plugin as in the 0.1.0 run (`http_request_host_is_external` for `localhost`), and `pre_wp_mail`
+  to catch mail.
+- **A mistake of the harness, worth knowing:** WP-CLI in a separate container did not have the
+  `WORDPRESS_CONFIG_EXTRA` that defines `REWLOY_API_URL`, so for a short time `wp action-scheduler run`
+  sent an `issuePass` (and one debug call) to the plugin's default host, `https://app.rewloy.com`, with a
+  throwaway local key. It answered 401 `INVALID_API_KEY` and nothing was created; the CLI was given the
+  same environment after that. It is also how the first of the checks below noticed that the plugin
+  honours the constant only when it is defined.
+
+## Results
+
+### 1. Connect with a real code: passed
+
+Pasted into the screen's field and Connect pressed: one `POST /v1/shops/connect` (body: the code and the
+site title as `shopName`), then `GET /v1/programs`, `GET /v1/shops/<id>`, `GET /v1/shops/<id>/orders`.
+
+- Rewloy: the code is spent (`used_at`, linked to the link and the key); a link (`woocommerce`, rule
+  `amount`, 100.00, step 2); a key `WooCommerce · E2E Shop`, role E-ticaret, `plugin = true`, bound to
+  the link (`store_link_id`).
+- WordPress: a webhook `Rewloy`, `active`, topic `order.updated`, `api_version` 3, delivery URL
+  `http://localhost/hooks/store/<link id>`, user the connecting administrator, a secret; options
+  `rewloy_wc_api_key` and `rewloy_wc_settings`, both `autoload=off`; no secret in either.
+- The screen: the masked key, "Puan (Points card)", the rule in words, link On, "webhook active, failed
+  deliveries: 0", "Key in Rewloy: WooCommerce · E2E Shop (5b3e6cdf74…)".
+- Not seen: WooCommerce's form-encoded ping. `WC_Webhook::save()` of a new active webhook sent none (in
+  the WooCommerce source the ping is in the data store's `update()`); the 0.1.0 text below says otherwise. Rewloy answers it
+  `ping` when it comes (`test/ecommerce.test.ts`).
+- Also: a malformed code is refused without a call; a well-formed unknown one gives "did not accept this
+  code…" with the request id; a code pasted while connected is refused ("already connected") and left unspent.
+
+### 2. A paid order credits the card: passed
+
+An order of 240.00 TRY (`processing`) for `alici@e2e.test`, who has a points card. WooCommerce queued the
+delivery; it ran from Action Scheduler; Rewloy answered `{"data":{"outcome":"credited"}}`. In Rewloy's
+database: `store_order` (13, credited), and the card's ledger holds one `earn` of **4** (2 units of 100
+times step 2), key `store:<link>:13`. Balance 0 to 4. The signature (base64 HMAC-SHA256 of the **trimmed
+body**) and the body were accepted by the real `handleOrder`, which was the open question of 0.1.0. A
+later order of 120 earned 2, and a re-saved paid order is `duplicate`.
+
+### 3. The checkout invitation: passed, one defect found and fixed (see "Defects")
+
+A real checkout in the browser (block checkout, additional order information): the box is unticked,
+carries the controller's name, the notice and the privacy URL; ticked, the order has
+`_wc_other/rewloy-for-woocommerce/invite = 1`; Cash on delivery makes the order `processing`. For
+`newbie@e2e.test`, who had no card:
+
+- **One card.** `POST /v1/passes` with `Idempotency-Key: woo-d6bc14ce29-15`, `orderId` 15 and `shopId`:
+  one card at Rewloy for that address.
+- **The order that earned it is credited.** The order's own delivery had reached Rewloy first
+  (`unmatched`, "Kartı yok"); the card's answer was `order: {result: "resend", outcome: "unmatched"}`; the
+  plugin handed the order to `WC_Webhook::process( 15 )` of the (already `processing`) order; WooCommerce
+  queued, signed and delivered it; Rewloy credited it (this order's first attempt was the harness mistake above, so it was the order action that opened its card; the card's answer and what followed are the real ones): one ledger entry for order 15, balance 2. The order
+  note says the card was opened, the link e-mailed (it was, to `newbie@e2e.test`, with a
+  `https://rewloy.com/p/<serial>?k=…` link) and the order was queued to be sent again.
+- **The other order of arrival** (`order: {result: "waiting"}`): the card was opened first, then the order's
+  delivery found it and credited it once. No `resend` note.
+- **Replay.** The same request (same key, same body) sent by hand with the plugin's key: `201`,
+  `Idempotent-Replayed: true`, the same serial and private link, still one card for the address. The
+  replayed answer carries the first answer's `order` as it was (`resend`, `unmatched`) although the order is
+  `credited` by then. Through the plugin (the order's state erased, then run): "card opened … Rewloy
+  answered with the card an earlier request of this order had opened"; no second card, no second credit
+  (the second delivery is `duplicate`).
+- A second ticked order of an address already invited: state `exists`, the note names order 15, and **no
+  request** reached Rewloy.
+
+### 4. An unclear answer: passed (after the fix)
+
+Two ways, both with a real Rewloy:
+
+- **Rewloy stopped** (SIGTERM, then started again): the issue action found no one; the order went to
+  `unknown`, the first request's record was written, the note says the same request is repeated
+  automatically. **Before the fix no repeat was scheduled** (defect 1). After it, a pending single action
+  for +5 minutes existed; with Rewloy back and the time passed, Action Scheduler ran it: one card, the link
+  mailed, the next scheduled attempt cancelled, the order credited. `as_unschedule_action` cancelled the
+  pending repeat on success (`canceled` in the table).
+- **The answer lost after the work was done:** a one-file proxy in front of `/v1/passes` forwarded each request to
+  Rewloy and then dropped the connection. The first request opened the card at Rewloy; the client's two
+  retries with the same key were each answered `Idempotent-Replayed: true` and dropped; the plugin ended
+  `unknown`. With the proxy removed and the repeat due: "card opened … Rewloy answered with the card an
+  earlier request of this order had opened"; **still one card for the address**, one mail, the order credited.
+- By hand: the order action "try opening the card again" opened the card of an `unknown` order once.
+
+### 5. Pause, resume, disconnect, uninstall: passed
+
+- **Pause** (the screen's button): `PATCH /v1/shops/<id> {"enabled":false}`; "Link: Off"; an order paid
+  meanwhile was recorded `paused` and the card did not change; the webhook stayed `active`. **Resume**:
+  `enabled` true; the next order credited; the paused order stayed `paused` after being saved again ("now
+  or later" is true).
+- **Disconnect** (the screen's button): `DELETE /v1/shops/<id>` answered 204; the link is gone, **the key is
+  `revoked`, and the same key sent to `GET /v1/me` afterwards answers `401 INVALID_API_KEY`**; the
+  WooCommerce webhook is gone, the key option is gone, the choices (controller, tab) stay.
+- **Uninstall** (`wp plugin uninstall`, while connected): the options, the webhook and the
+  pending actions are gone, the folder is deleted, **no request reached Rewloy** (the link and its key stay
+  there, as the screen says), the order meta stays.
+- **A link deleted in the Rewloy panel** (not in the list; found by the run): the key went with it, orders were
+  answered 404 and counted as failures by WooCommerce, and the screen said "check that the key is complete",
+  as did the removal. Defect 2.
+
+### 6. Health: passed
+
+After a credited order the screen shows "Last request from the shop: <time> · Added to the card", "Last order
+seen", the outcomes (6 added, 1 no card at the time) and the last orders. One request with a wrong signature
+(`401`) to the link's address made Rewloy record it and the screen show "Last refused request: <time> ·
+Signature did not match" with the explanation; the order it carried was not recorded, and `lastDelivery`
+stayed as it was. In `tr_TR` the same rows read "Mağazadan son istek … · Kayıtlı siparişin tekrarı" and the
+buttons "Bağlantıyı kaldır", "Bağlantıyı yalnız bu sitede unut".
+
+### 7. The test environment: passed
+
+A code made in the test business (`rewloy-merchant: <test business>`): the screen said "Connected to your
+Rewloy test environment…", the key reads `rwk_test_43c455f268••••••••` with the test-environment paragraph, and
+the connection used the test programme (per 50.00 TRY, 1 point). A 240 TRY order for the test customer
+credited **4** in the test business; a ticked order opened a card there and credited it (2); the real
+business's customer's balance did not move. Rewloy sent nothing of its own: its test outbox holds only the
+mail about the new key, held back instead of sent. The plugin itself still mailed the card link to the
+typed address, as the screen warns. Disconnect: the link deleted, the test key revoked.
+
+## Defects found and fixed
+
+1. **The repeat of an unclear answer was never scheduled** (`73f8b04`). `Issuer` scheduled it with
+   `as_schedule_single_action( …, unique = true )`. Action Scheduler's unique check counts a **running**
+   action with the same hook, arguments and group as a duplicate, and the first attempt always runs inside
+   that action (the async one the paid order queued). Nothing was scheduled, the closure still answered true,
+   and the order note promised "repeated automatically": an unclear order waited for a person to press the
+   order action. Seen in the table (only the finished async action existed) and in the unit tests' blind spot
+   (the stubs do not know "running"). Now a plain single action, skipped only when a pending one already waits
+   for that time or later, and the note promises it only when an action id comes back. Tests added.
+2. **A connect-code connection whose link was deleted in the panel was a dead end** (`9079488`). The key is
+   revoked with the link, so the screen and the removal said "check that the key is complete", the removal
+   could never work, and the one button that does ("Forget the connection on this site only") was folded
+   away. Now both say the link was probably deleted and name that button, and the fold is open. Turkish added.
+   Tests added.
+
+## Seen and left alone
+
+- The invitation reaches the customer about a minute after the order, not in the request: Action Scheduler
+  ran from WP-Cron (once a minute). That is by design (D29: a slow Rewloy must not hold the checkout); on a
+  shop with no traffic and no real cron it can take longer.
+- The card e-mail prints "Data controller: E2E Kafe Ltd.. Details:" when the controller's name ends in a full stop.
+- The note after a replayed `resend` says the order "was queued to be sent again" although it had been credited
+  already; the replay carries the first answer as designed (D30), and the second delivery is `duplicate`.
+- "The link in Rewloy is still there" is printed after "forget on this site only" even when it is not.
+- Every save of an order triggers another `order.updated` delivery (WooCommerce does that), including the
+  plugin's own note and meta writes; Rewloy counts an order once (`duplicate`).
+- `WC_Webhook::save()` sends no ping (see check 1); the 0.1.0 text below, written on a fake, says it did.
+
+## Platform findings (Rewloy)
+
+None that is a bug. Papercuts for the platform's notes: the replayed `issuePass` answer keeps the first answer's
+`order.result` (`resend`) after the order has been credited, so a client that acts on it delivers once more
+(harmless: `duplicate`); `DELETE` with `Content-Type: application/json` and no body is `400 INVALID_JSON` (the plugin
+sends no content type with a body-less call, so it never meets it).
+
+## Not verified
+
+The production host and its https (the local Rewloy was told its card origin is `rewloy.com`); behaviour after
+Rewloy's seven-day replay window; Action Scheduler's admin-ajax async runner (the queue ran from WP-Cron and
+WP-CLI); a real mail transport; WooCommerce below 11.1, WordPress below 7.1, PHP 8.1 at run time, multisite;
+HPOS off with the real Rewloy (the 0.1.0 run covers the legacy store with the fake); the classic checkout with a
+real Rewloy (0.1.0: with the fake); the My Account tab against the real Rewloy (it makes no call).
+
+---
+
+# 0.1.0 against a fake Rewloy
+
+> This section is the run of 0.1.0, left as it was. What it could not check (the real Rewloy) is the 0.2.0 run above.
 
 Run on 4 October 2026. Until then the plugin had only run under PHPUnit with stubs.
 This file says what was run, what was seen, what was found wrong and what is still

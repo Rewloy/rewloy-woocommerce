@@ -42,8 +42,13 @@ Uses what the Rewloy platform went live with that day (Rewloy ADR 174).
   Rewloy lists for the link (`pluginKey`), in the panel's own words.
 - **Test environments (D33).** A `rwk_test_` key is said to be one; its mask shows
   `rwk_test_` and its prefix.
+- **Checked against the real Rewloy (docs/VERIFIED.md), two fixes.** The repeat of an unclear
+  answer was scheduled with Action Scheduler's `unique` flag, which counts the action that is
+  running as the same action, so it was never scheduled while the note said it was (D29). And when
+  the link is deleted in the Rewloy panel, the key a code made is revoked with it: the screen and the
+  removal now say so and open "forget the connection on this site only" (D35).
 - Turkish for every new string; `.pot`, `.po` and `.mo` complete.
-- Tests for every change: 288 PHPUnit tests; PHPStan level 8 and `bin/lint` clean;
+- Tests for every change: 295 PHPUnit tests; PHPStan level 8 and `bin/lint` clean;
   `bin/build-zip` builds `rewloy-for-woocommerce-0.2.0.zip`.
 
 ## 0.1.0 (yayımlanmadı / unreleased)
