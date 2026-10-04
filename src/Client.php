@@ -272,6 +272,114 @@ final class Client {
 	}
 
 	/**
+	 * The same client with another time limit for one attempt: the checkout's calls run inside the customer's request
+	 * and wait less than an admin screen does.
+	 */
+	public function with_timeout( float $seconds ): self {
+		$copy          = clone $this;
+		$copy->timeout = max( 1.0, $seconds );
+		return $copy;
+	}
+
+	/**
+	 * `quoteCheckoutCode`: what a Rewloy code the customer typed gives at this shop (0.4.0). Nothing is held; the first
+	 * quote binds the code to this shop's link. Rewloy answers a repeat the same way, so it is retried like a read.
+	 *
+	 * @param string $code     The code as typed (Rewloy normalises it); a bearer secret, never logged.
+	 * @param string $currency The cart's currency (ISO 4217).
+	 * @param string $shopper  An opaque, stable hash of the shopper ('' for none).
+	 * @return array<string,mixed> kind, type, programId, programName, currency, maxMinor, percent, amountMinor, tax,
+	 *                             cardId, cardLast4, codeLast4, firstUseBy, attachBy.
+	 */
+	public function quote_code( string $shop_id, #[\SensitiveParameter] string $code, string $currency, string $shopper = '' ): array {
+		$body = array(
+			'code'     => $code,
+			'currency' => strtoupper( $currency ),
+		);
+		if ( '' !== $shopper ) {
+			$body['shopper'] = $shopper;
+		}
+		$meta = array();
+		return $this->object_of( $this->call( 'POST', '/shops/' . $this->uuid( $shop_id ) . '/checkout-codes/quote', array(), $body, '', true, $meta, true ) );
+	}
+
+	/**
+	 * `holdCheckoutCode`: ties the code to the order and holds its value, before payment. Rewloy keys it on the order
+	 * and the code: a repeat answers the redemption as it stands (or holds again after a release), so it is retried.
+	 *
+	 * @param int      $amount_minor      What the order actually got from the code, in minor units (a balance card: required).
+	 * @param int|null $order_total_minor The order's total before its discounts, in minor units: Rewloy refuses an amount
+	 *                                    above it (null to send none).
+	 * @return array<string,mixed> The redemption.
+	 */
+	public function hold_code( string $shop_id, string $order_id, #[\SensitiveParameter] string $code, string $currency, int $amount_minor, ?int $order_total_minor = null ): array {
+		$body = array(
+			'code'        => $code,
+			'currency'    => strtoupper( $currency ),
+			'amountMinor' => max( 0, min( 10_000_000, $amount_minor ) ),
+		);
+		if ( null !== $order_total_minor ) {
+			$body['orderTotalMinor'] = max( 0, min( 100_000_000, $order_total_minor ) );
+		}
+		$meta = array();
+		return $this->object_of( $this->call( 'POST', '/shops/' . $this->uuid( $shop_id ) . '/orders/' . $this->order_id( $order_id ) . '/redemptions', array(), $body, '', true, $meta, true ) );
+	}
+
+	/**
+	 * `listOrderRedemptions`: the order's Rewloy codes as they are now.
+	 *
+	 * @return list<array<string,mixed>>
+	 */
+	public function order_redemptions( string $shop_id, string $order_id ): array {
+		return $this->list_of( $this->call( 'GET', '/shops/' . $this->uuid( $shop_id ) . '/orders/' . $this->order_id( $order_id ) . '/redemptions' ) );
+	}
+
+	/**
+	 * `captureCheckoutOrder`: the order is paid; every held redemption is taken (a late one too, if the card still has
+	 * it). A 409 HOLD_UNBACKED carries the redemptions in its details.
+	 *
+	 * @return list<array<string,mixed>>
+	 */
+	public function capture_order( string $shop_id, string $order_id ): array {
+		$meta = array();
+		return $this->list_of( $this->call( 'POST', '/shops/' . $this->uuid( $shop_id ) . '/orders/' . $this->order_id( $order_id ) . '/capture', array(), array(), '', true, $meta, true ) );
+	}
+
+	/**
+	 * `releaseCheckoutOrder`: the order was cancelled or failed (or the shop refused it): what it held goes back.
+	 *
+	 * @param string $reason `cancelled`, `failed` or `shop`.
+	 * @return list<array<string,mixed>>
+	 */
+	public function release_order( string $shop_id, string $order_id, string $reason ): array {
+		$meta = array();
+		$body = array( 'reason' => in_array( $reason, array( 'cancelled', 'failed', 'shop' ), true ) ? $reason : 'shop' );
+		return $this->list_of( $this->call( 'POST', '/shops/' . $this->uuid( $shop_id ) . '/orders/' . $this->order_id( $order_id ) . '/release', array(), $body, '', true, $meta, true ) );
+	}
+
+	/**
+	 * `refundCheckoutOrder` with no amount: the order was refunded in full; what it took goes back to the cards once,
+	 * and the order's own earn is taken back as the shop's setting says.
+	 *
+	 * @return array<string,mixed> `redemptions` and `unearned`.
+	 */
+	public function refund_order( string $shop_id, string $order_id ): array {
+		$meta = array();
+		return $this->object_of( $this->call( 'POST', '/shops/' . $this->uuid( $shop_id ) . '/orders/' . $this->order_id( $order_id ) . '/refund', array(), array(), '', true, $meta, true ) );
+	}
+
+	/**
+	 * `setShopSettings`: the shop's checkout settings (tax per type, refunded orders, hold days, accepted cards). Only
+	 * what is sent changes. A PATCH sets values, so a repeat changes nothing more.
+	 *
+	 * @param array<string,mixed> $patch
+	 * @return array<string,mixed> The link.
+	 */
+	public function update_shop_settings( string $shop_id, array $patch ): array {
+		return $this->object_of( $this->call( 'PATCH', '/shops/' . $this->uuid( $shop_id ) . '/settings', array(), $patch ) );
+	}
+
+	/**
 	 * One call, with the retry rules (see Retry::retries_for).
 	 *
 	 * @param array<string,scalar>     $query
@@ -283,7 +391,7 @@ final class Client {
 	 * @throws RewloyException On every failure.
 	 * @throws \LogicException For a call that needs a key, on a client that has none.
 	 */
-	private function call( string $method, string $path, array $query = array(), ?array $body = null, string $idempotency_key = '', bool $auth = true, array &$meta = array() ): array {
+	private function call( string $method, string $path, array $query = array(), ?array $body = null, string $idempotency_key = '', bool $auth = true, array &$meta = array(), bool $repeatable = false ): array {
 		if ( $auth && '' === $this->api_key ) {
 			throw new \LogicException( 'This client has no API key.' );
 		}
@@ -300,7 +408,8 @@ final class Client {
 		}
 		$json    = null;
 		if ( null !== $body ) {
-			$json                    = (string) wp_json_encode( $body );
+			// An empty body is an empty JSON object (`{}`), never `[]`: the API's bodies are objects.
+			$json                    = array() === $body ? '{}' : (string) wp_json_encode( $body );
 			$headers['Content-Type'] = 'application/json';
 		}
 		if ( '' !== $idempotency_key ) {
@@ -316,7 +425,7 @@ final class Client {
 		if ( null !== $json ) {
 			$args['body'] = $json;
 		}
-		$retries = Retry::retries_for( $method, $idempotency_key );
+		$retries = Retry::retries_for( $method, $idempotency_key, $repeatable );
 
 		for ( $attempt = 0; ; $attempt++ ) {
 			$res = ( $this->transport )( $url, $args );
@@ -351,6 +460,7 @@ final class Client {
 			$message = is_string( $error['message'] ?? null ) ? $error['message'] : 'HTTP ' . $status;
 			$request = is_string( $error['requestId'] ?? null ) ? $error['requestId'] : $request_id;
 			$wait    = Retry::parse_retry_after( $this->header( $res, 'retry-after' ) );
+			$details = is_array( $error['details'] ?? null ) ? $error['details'] : array();
 
 			if ( $attempt < $retries && Retry::retryable_status( $status, $code ) ) {
 				$delay = $wait ?? Retry::backoff( $attempt );
@@ -360,7 +470,8 @@ final class Client {
 				}
 			}
 			// phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- an exception's text is never printed raw: Admin and the order notes escape it where they show it.
-			throw new ApiError( $message, $status, $code, $request, $wait ?? 0.0 );
+			/** @var array<string,mixed> $details */
+			throw new ApiError( $message, $status, $code, $request, $wait ?? 0.0, $details );
 		}
 	}
 
@@ -421,6 +532,14 @@ final class Client {
 			throw new \InvalidArgumentException( 'An Idempotency-Key is 8 to 64 characters.' );
 		}
 		return $key;
+	}
+
+	/** A shop's order number that goes into a path: what Rewloy takes (1 to 100 of letters, digits, `.`, `_`, `:`, `-`). */
+	private function order_id( string $id ): string {
+		if ( 1 !== preg_match( '/^[A-Za-z0-9._:-]{1,100}$/', $id ) ) {
+			throw new \InvalidArgumentException( 'Not an order number Rewloy takes.' );
+		}
+		return $id;
 	}
 
 	/** An id that goes into a path must be a UUID. */

@@ -30,6 +30,7 @@ final class UninstallTest extends TestCase {
 		$settings->save_api_key( self::KEY );
 		$this->options[ Plugin::FLUSH_OPTION ] = '1';
 		$this->options['unrelated']            = 'stays';
+		$this->options[ \Rewloy\WooCommerce\CheckoutSettings::SEEN_OPTION ] = array( 'x' => array( 'name' => 'Hediye kartı' ) );
 		$hook = $this->webhook( 'https://app.rewloy.com/hooks/store/' . self::LINK );
 
 		Uninstaller::run();
@@ -37,6 +38,7 @@ final class UninstallTest extends TestCase {
 		$this->assertArrayNotHasKey( Settings::OPTION, $this->options );
 		$this->assertArrayNotHasKey( Settings::KEY_OPTION, $this->options );
 		$this->assertArrayNotHasKey( Plugin::FLUSH_OPTION, $this->options );
+		$this->assertArrayNotHasKey( \Rewloy\WooCommerce\CheckoutSettings::SEEN_OPTION, $this->options );
 		$this->assertSame( 'stays', $this->options['unrelated'] );
 		$this->assertTrue( $hook->deleted );
 		$this->assertSame( array(), $this->requests );

@@ -92,7 +92,7 @@ final class AdminTest extends TestCase {
 	/** @return array<string,array{0:string}> */
 	public static function actions(): array {
 		$out = array();
-		foreach ( array( 'connect_code', 'save_key', 'forget_key', 'connect', 'toggle', 'disconnect', 'reactivate', 'save_options' ) as $a ) {
+		foreach ( array( 'connect_code', 'save_key', 'forget_key', 'connect', 'toggle', 'disconnect', 'reactivate', 'save_options', 'save_checkout' ) as $a ) {
 			$out[ $a ] = array( $a );
 		}
 		return $out;

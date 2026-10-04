@@ -20,12 +20,17 @@ defined( 'ABSPATH' ) || exit;
  */
 class RewloyException extends \RuntimeException {
 
+	/**
+	 * @param array<string,mixed> $details The error's `details` object when the API sent one (0.4.0: e.g. the
+	 *                                     redemptions of a `HOLD_UNBACKED`); never anything of the key.
+	 */
 	public function __construct(
 		string $message,
 		public readonly int $status = 0,
 		public readonly string $api_code = '',
 		public readonly string $request_id = '',
-		public readonly float $retry_after = 0.0
+		public readonly float $retry_after = 0.0,
+		public readonly array $details = array()
 	) {
 		parent::__construct( $message );
 	}

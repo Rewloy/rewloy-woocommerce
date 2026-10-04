@@ -3,9 +3,9 @@
 **WooCommerce mağazanızın siparişleri Rewloy sadakat kartlarını doldursun.**
 
 > **Durum: önizleme (0.x): yayımlanmadı.** Eklentinin henüz yayımlanmış bir sürümü
-> yok; WordPress.org dizininde de değil. Kod burada. **0.3.0** PHPUnit'le denendi; 0.1.0
-> ayrıca gerçek bir WordPress 7.1 + WooCommerce 11.1'de sahte bir Rewloy API'siyle
-> ([docs/VERIFIED.md](docs/VERIFIED.md)). Gerçek Rewloy'a karşı henüz denenmedi.
+> yok; WordPress.org dizininde de değil. Kod burada. **0.4.0** PHPUnit'le ve gerçek bir
+> WordPress 7.1.2 + WooCommerce 11.1.2 mağazasında, yerelde çalışan gerçek Rewloy'a karşı
+> denendi (klasik ve blok ödeme, HPOS açık ve kapalı; [docs/VERIFIED.md](docs/VERIFIED.md)).
 > WooCommerce mağazanızı Rewloy'a **bugün eklentisiz de bağlayabilirsiniz**; yolu aşağıda.
 
 [Rewloy](https://rewloy.com), işletmelerin dijital sadakat kartlarını
@@ -35,6 +35,23 @@ Cüzdan'da, her yerde web kartında açılır. Kasada QR okutulur. Online satı�
   oluşturmak ve tasarlamak, kampanyalar, ekip ve fatura Rewloy panelinde kalır; eklenti
   tam sayfasına bağlantı verir. WordPress'te hiçbir müşterinin adı, e-postası ya da
   telefonu görünmez; API anahtarı tarayıcıya hiç ulaşmaz.
+- **Ödeme adımında Rewloy kartları (0.4.0).** Müşteri kartında (kartın sayfası ya da
+  Rewloy Cüzdan) "Online alışverişte kullan" ile tek kullanımlık bir kod oluşturur,
+  `RW-XXXX-XXXX`, ve klasik ya da blok ödeme sayfasının **kupon alanına** yazar:
+  - cashback kartı ve tutarlı kupon siparişten **indirim** olarak düşer (vergiden önce);
+  - hediye kartı **ödeme** olarak ayrı, vergisiz bir eksi satırla düşer (vergiden sonra,
+    ürünlerin KDV'si değişmez; WooCommerce böyle bir satırın en fazla vergi öncesi tutarı
+    düşmesine izin verir);
+  - indirim kartı yüzdesini verir; damga, puan ve VIP kartı siparişi **o karta bağlar**
+    (sipariş e-postası başka bir kartınki olsa da bu karta işlenir).
+
+  Tutar sipariş verilince Rewloy'da **ayrılır** (ayırma olmadan ödeme alınmaz: Rewloy
+  reddederse ya da yanıt vermezse sipariş, müşterinin anlayacağı bir iletiyle reddedilir),
+  ödenince **düşülür**, iptal ya da başarısızlıkta karta **döner**, tam iadede karta
+  **geri yüklenir**; her adım sipariş notunda yazar. Her seçim Rewloy › Ayarlar'da
+  varsayılanı olan bir ayardır (yalnız yöneticiler değiştirir): işletmenin diğer
+  kartlarından hangileri kabul edilir, türe göre vergi (muhasebecinize danışın), iade
+  edilen siparişin geri alacağı, ödenmeyen siparişin bekletme süresi (1–30 gün, varsayılan 7).
 - **Kodla tek adımda bağlanma.** Rewloy panelinde kartı ve kuralı seçip tek
   kullanımlık bir **bağlantı kodu** alırsınız (15 dakika geçerli); Rewloy › Ayarlar
   ekranına yapıştırıp **Bağla**'ya basarsınız. Rewloy'daki bağlantıyı ve
@@ -116,6 +133,7 @@ Eklenti yalnız Rewloy'a (`https://app.rewloy.com`) veri gönderir.
 | Her sipariş güncellemesinde (WooCommerce webhook'u) | Siparişin **numarası, durumu, para birimi ve tutarı**; **fatura e-postası** yalnız sipariş *işleniyor* ya da *tamamlandı* olduğunda. Yalnız mağazanın ve Rewloy'un bildiği bir sırla imzalı. Ad, adres, telefon ve ürünler **gitmez**: eklenti webhook'un içeriğini bu alanlara indirir. Rewloy e-postayı yalnız mevcut kartı bulmak, tutarı yalnız hesaplamak için okur; sipariş numarasını, sonucunu ve zamanını saklar. |
 | Davet açıksa ve alıcı kutuyu işaretlediyse, sipariş ödenince | Fatura e-postası, kart açmak için; yanında aydınlatma metninin sunulduğu beyanı, siparişin numarası ve bağlantının kimliği (sipariş karta sayılsın diye). Yanıt belirsizse aynı istek aynı anahtarla yinelenir. Sipariş karttan önce Rewloy'a ulaşmışsa WooCommerce siparişi webhook'undan yeniden teslim eder (yukarıdaki satır). |
 | Rewloy menüsü: Kartlar ve Kasa (yalnız `manage_woocommerce`) | Yazılan ya da okutulan **kart numarası** (okutulan kart bağlantısının geri kalanı, özel `k` anahtarı dahil, hemen atılır, hiçbir yere yazılmaz); kasada **ödenen toplam**, **fiş numarası** ve kasanın şubesi. Yanıt: kartın durumu ve son işlemler; hiçbir kişinin adı, e-postası ya da telefonu gelmez. Çağrıları tarayıcı değil WordPress yapar. |
+| Ödeme adımında bir Rewloy kodu (0.4.0) | Yazılan **kod** ve sepetin para birimi (ne sağladığını sormak için), alışverişçinin kişisel veri taşımayan bir özeti (WooCommerce müşteri ya da oturum kimliğinin sitenin sırrıyla HMAC-SHA256'sı; kimliğin kendisi gitmez); sonra **sipariş numarası**, siparişin koddan aldığı tutar ve indirimden önceki toplamı (ayırmak, düşmek, bırakmak ya da iade etmek için). Yanıt: kartın programı, türü ve son dört karakteri; ad, e-posta ya da kart numarası gelmez. Eklenti kodu saklamaz (WooCommerce kodu siparişin kupon satırında tutar). |
 | Hesabım sekmesi | Hiçbir şey. |
 
 Müşterilerinizi, sipariş e-postası ve tutarının kart eşleştirmesi için Rewloy'a
@@ -224,9 +242,9 @@ sipariş, sonucuyla birlikte panelde bağlantının kendi sayfasında görünür
 **Let your WooCommerce shop's orders fill Rewloy loyalty cards.**
 
 **Status: preview (0.x): not published.** There is no release yet, and it is not on
-WordPress.org. The code is here. **0.3.0** has been tested with PHPUnit; 0.1.0 was also run on
-a real WordPress 7.1 and WooCommerce 11.1 against a local fake of the Rewloy API
-([docs/VERIFIED.md](docs/VERIFIED.md)). Neither has been run against the real Rewloy.
+WordPress.org. The code is here. **0.4.0** has been tested with PHPUnit and on a real
+WordPress 7.1.2 + WooCommerce 11.1.2 store against the real Rewloy running locally (classic and
+block checkout, HPOS on and off; [docs/VERIFIED.md](docs/VERIFIED.md)).
 
 You can connect WooCommerce today without a plugin:
 1. In the Rewloy panel, go to E-ticaret › Mağaza bağla and choose WooCommerce.
@@ -251,6 +269,14 @@ Rewloy stores only the order number, its outcome and the time.
   campaigns, the team and billing stay in the Rewloy panel, one exact link away. No
   customer's name, e-mail or phone shows in WordPress, and the key never reaches the
   browser.
+- **Rewloy cards at the checkout (0.4.0).** A customer makes a one-time code on their card
+  (`RW-XXXX-XXXX`) and types it into the coupon field of the classic or block checkout. A
+  cashback card or a money coupon is a discount before tax; a gift card is a payment after
+  tax (a negative, untaxed line: the goods' KDV stays); a discount card gives its percent; a
+  stamp, points or VIP card ties the order to that card. The value is held when the order is
+  placed (no payment without the hold), taken when it is paid, released when it is cancelled
+  or fails, put back on a full refund, each step in the order notes. Every choice is a
+  setting with a default under Rewloy › Settings (administrators only).
 - **Connect in one step, with a code.** In the Rewloy panel you choose the card and the
   rule and get a one-time **connect code** (15 minutes); paste it under Rewloy ›
   Settings and press *Bağla* (Connect). The plugin creates the link in Rewloy and the
@@ -310,7 +336,10 @@ order's number and the link's id (a repeat with the same key if the answer was u
 On the Rewloy menu's Cards and Till tabs: the card number typed or scanned (the rest of a
 scanned card link, its private key included, is dropped at once), and on the till the paid
 total, the receipt number and the till's branch; Rewloy sends back no one's name, e-mail or
-phone. The My Account tab sends nothing. Deleting the plugin removes its options and webhook
+phone. A Rewloy code typed at checkout: the code and the basket's currency with an opaque
+per-shopper hash, then the order's number, what it took from the code and its total before
+discounts; Rewloy answers with the card's programme, kind and last four characters.
+The My Account tab sends nothing. Deleting the plugin removes its options and webhook
 from your site and deletes nothing in Rewloy. As the shop you must inform your
 customers that order e-mails and totals go to Rewloy for matching.
 

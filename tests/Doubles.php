@@ -70,6 +70,17 @@ class WC_Order {
 		return $this->total;
 	}
 
+	public string $discount_total = '0';
+	public string $discount_tax   = '0';
+
+	public function get_discount_total(): string {
+		return $this->discount_total;
+	}
+
+	public function get_discount_tax(): string {
+		return $this->discount_tax;
+	}
+
 	public function get_meta( string $key ): mixed {
 		return $this->meta[ $key ] ?? '';
 	}
@@ -84,6 +95,14 @@ class WC_Order {
 
 	public function save_meta_data(): void {
 		++$this->saves;
+	}
+
+	/** @var array<string,list<object>> Order lines by type (`coupon`, `fee`). */
+	public array $items = array();
+
+	/** @return list<object> */
+	public function get_items( $type = 'line_item' ): array {
+		return $this->items[ is_array( $type ) ? (string) reset( $type ) : (string) $type ] ?? array();
 	}
 
 	public function add_order_note( string $note, $customer = 0 ): int {
@@ -201,5 +220,131 @@ class FakeWpdb {
 			return 1;
 		}
 		return 0;
+	}
+}
+
+/** A coupon WooCommerce built (only its code matters to the plugin). */
+class WC_Coupon {
+	public function __construct( private string $code = '' ) {
+	}
+
+	public function get_code(): string {
+		return $this->code;
+	}
+}
+
+/** An order's coupon line. */
+class WC_Order_Item_Coupon {
+	public function __construct( private string $code = '', private string $discount = '0', private string $discount_tax = '0' ) {
+	}
+
+	public function get_code(): string {
+		return $this->code;
+	}
+
+	public function get_discount(): string {
+		return $this->discount;
+	}
+
+	public function get_discount_tax(): string {
+		return $this->discount_tax;
+	}
+}
+
+/** An order's fee line, with meta and taxes. */
+class WC_Order_Item_Fee {
+	/** @var array<string,mixed> */
+	public array $meta = array();
+	/** @var mixed */
+	public $taxes = 'untouched';
+
+	public function __construct( private string $total = '0' ) {
+	}
+
+	public function get_total(): string {
+		return $this->total;
+	}
+
+	public function get_meta( string $key ): mixed {
+		return $this->meta[ $key ] ?? '';
+	}
+
+	public function add_meta_data( string $key, mixed $value, bool $unique = false ): void {
+		$this->meta[ $key ] = $value;
+	}
+
+	public function set_taxes( mixed $taxes ): void {
+		$this->taxes = $taxes;
+	}
+}
+
+/** WooCommerce's session: a key-value store per shopper. */
+class FakeSession {
+	/** @var array<string,mixed> */
+	public array $data = array();
+	public string $customer = '42';
+
+	public function get( string $key, mixed $default = null ): mixed {
+		return $this->data[ $key ] ?? $default;
+	}
+
+	public function set( string $key, mixed $value ): void {
+		if ( null === $value ) {
+			unset( $this->data[ $key ] );
+			return;
+		}
+		$this->data[ $key ] = $value;
+	}
+
+	public function get_customer_id(): string {
+		return $this->customer;
+	}
+}
+
+/** WooCommerce's cart, as far as the plugin reads and changes it. */
+class FakeCart {
+	/** @var list<string> */
+	public array $applied = array();
+	/** @var array<string,float> What each coupon saves, tax included. */
+	public array $saved = array();
+	/** @var list<array<string,mixed>> */
+	public array $fees = array();
+	public float $subtotal = 0.0;
+	public float $subtotal_tax = 0.0;
+	public int $recalculated = 0;
+	/** @var (callable(FakeCart): void)|null Runs on calculate_totals(). */
+	public $on_calculate = null;
+
+	/** @return list<string> */
+	public function get_applied_coupons(): array {
+		return $this->applied;
+	}
+
+	public function get_coupon_discount_amount( string $code, bool $ex_tax = true ): float {
+		return $this->saved[ $code ] ?? 0.0;
+	}
+
+	public function get_subtotal(): float {
+		return $this->subtotal;
+	}
+
+	public function get_subtotal_tax(): float {
+		return $this->subtotal_tax;
+	}
+
+	public function fees_api(): self {
+		return $this;
+	}
+
+	/** @param array<string,mixed> $fee */
+	public function add_fee( array $fee ): void {
+		$this->fees[] = $fee;
+	}
+
+	public function calculate_totals(): void {
+		++$this->recalculated;
+		if ( null !== $this->on_calculate ) {
+			( $this->on_calculate )( $this );
+		}
 	}
 }

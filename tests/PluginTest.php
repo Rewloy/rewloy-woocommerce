@@ -143,6 +143,13 @@ final class PluginTest extends TestCase {
 		$this->assertNotFalse( has_action( \Rewloy\WooCommerce\Issuer::HOOK ), 'the scheduled run of an order\'s card, which an unclear answer is repeated by' );
 		$this->assertNotFalse( has_action( 'woocommerce_order_action_rewloy_retry_card' ) );
 		$this->assertFalse( has_action( 'admin_notices' ), 'WooCommerce is present, so no warning' );
+		// 0.4.0: a Rewloy card at the checkout, in both checkouts and every order status that moves value.
+		foreach ( array( 'woocommerce_get_shop_coupon_data', 'woocommerce_coupon_is_valid', 'woocommerce_cart_totals_get_fees_from_cart_taxes' ) as $filter ) {
+			$this->assertNotFalse( has_filter( $filter ), $filter );
+		}
+		foreach ( array( 'woocommerce_cart_calculate_fees', 'woocommerce_checkout_order_processed', 'woocommerce_store_api_checkout_order_processed', 'woocommerce_order_status_cancelled', 'woocommerce_order_status_failed', 'woocommerce_order_status_refunded', 'woocommerce_order_partially_refunded', 'woocommerce_order_item_fee_after_calculate_taxes', \Rewloy\WooCommerce\Holds::HOOK, 'admin_post_rewloy_wc_save_checkout' ) as $action ) {
+			$this->assertNotFalse( has_action( $action ), $action );
+		}
 	}
 
 	/** The issuer delivers an order again through the shop's webhook when Rewloy asks: it must be given that webhook. */

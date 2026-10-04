@@ -131,6 +131,16 @@ abstract class TestCase extends PhpUnitTestCase {
 		Functions\when( 'wc_get_price_decimals' )->justReturn( 2 );
 		Functions\when( 'wc_format_decimal' )->alias( fn( $n, $dp = false ) => false === $dp ? (string) $n : number_format( (float) $n, (int) $dp, '.', '' ) );
 		Functions\when( 'wc_get_orders' )->alias( fn( array $args ) => $this->queryOrders( $args ) );
+		// 0.4.0 (checkout codes): defined once any test mocks them, so every test gets the same defaults.
+		Functions\when( 'wc_coupons_enabled' )->justReturn( true );
+		Functions\when( 'wp_salt' )->justReturn( 'test-salt' );
+		Functions\when( 'is_admin' )->justReturn( false );
+		Functions\when( 'get_woocommerce_currency' )->justReturn( 'TRY' );
+		Functions\when( 'wc_get_coupon_id_by_code' )->justReturn( 0 );
+		Functions\when( 'wc_tax_enabled' )->justReturn( true );
+		Functions\when( 'wc_prices_include_tax' )->justReturn( true );
+		Functions\when( 'wc_price' )->alias( static fn( $n ) => '<span>' . number_format( (float) $n, 2, ',', '.' ) . '&nbsp;&#8378;</span>' );
+		Functions\when( 'wp_strip_all_tags' )->alias( static fn( $s ) => strip_tags( (string) $s ) );
 	}
 
 	protected function tearDown(): void {

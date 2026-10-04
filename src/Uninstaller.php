@@ -42,6 +42,9 @@ final class Uninstaller {
 		}
 		if ( function_exists( 'as_unschedule_all_actions' ) ) {
 			as_unschedule_all_actions( Issuer::HOOK );
+			// A checkout code's later tries (0.4.0): Rewloy's own backstop (the order webhook) and the hold's expiry
+			// finish what they would have done.
+			as_unschedule_all_actions( Holds::HOOK );
 		}
 		global $wpdb;
 		$like = $wpdb->esc_like( Settings::CLAIM_PREFIX ) . '%';
@@ -54,6 +57,7 @@ final class Uninstaller {
 		delete_option( Settings::OPTION );
 		delete_option( Settings::KEY_OPTION );
 		delete_option( Plugin::FLUSH_OPTION );
+		delete_option( CheckoutSettings::SEEN_OPTION );
 	}
 
 	/** Deletes the webhook if it is still there and is the one this plugin made (its delivery address names our link). */

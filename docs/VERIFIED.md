@@ -1,8 +1,104 @@
 # Verified on a real WordPress
 
-Two runs are written here. **0.2.0 against the real Rewloy application** (running locally) comes
-first; it is the one that matters for what 0.2.0 added. After it, unchanged, the **0.1.0 run against
+**0.4.0** (checkout codes, against the real Rewloy) comes first, then 0.3.0. Of the older runs, **0.2.0 against the real
+Rewloy application** (running locally) comes first; it is the one that matters for what 0.2.0 added. After it, unchanged, the **0.1.0 run against
 a fake Rewloy**, which is what checked activation, the checkout boxes, My Account, uninstall and Turkish.
+
+# 0.4.0: Rewloy cards at the checkout
+
+Run on 4 October 2026 against the **real Rewloy**, run locally, on the platform's `checkout-cards` branch after its security
+review (`c5f499b`, migration 0074; the first part of the run was on `be16992` and was repeated in full on `c5f499b`).
+Nothing in the Rewloy repository was changed.
+
+## Environment
+
+| | |
+|---|---|
+| Rewloy | `checkout-cards` at `c5f499b`, `node --experimental-strip-types src/app/main.ts` from its worktree on port 3724, a throwaway database `rewloy_test_wc4` made by `scripts/testdb.ts`, `APP_ORIGIN=http://localhost`, `SITE_ORIGIN=https://rewloy.com`; the expiry job (`expireHolds`) run by hand when a scenario needed it |
+| Business | "WC4 Kafe" (plan Business): a stamp card (the shop's own card), a cashback card (5 %), a gift card, a 15 % discount card, a coupon with an online value of 50 TL, a coupon without one; cards with balances, each held by a Rewloy Cüzdan device so codes could be minted the holder's way (`POST /v1/holder/cards/{serial}/checkout-codes`); a second business with its own shop link and cashback card, for a foreign code |
+| WordPress | a separate Docker Compose project `rewloy-wp4` (not the local WordPress, which is connected to production): WordPress 7.1.2, **WooCommerce 11.1.2** (the latest on wordpress.org), PHP 8.3, MariaDB 11, `WP_DEBUG_LOG` on |
+| Store | TRY, prices entered with tax, KDV 20 %, coupons on; "Kahve çekirdeği" 400 TL and "Fincan" 120 TL (virtual); cash on delivery, bank transfer and cheque on; the block Cart/Checkout pages WooCommerce made, and a classic checkout page (`[woocommerce_checkout]`) |
+| Connection | a real connect code for the stamp card, spent by the plugin's own `connect_with_code`; then "Cards this shop takes" switched on for every card in the ceiling from the Ayarlar screen (in the browser), which sent `PATCH /v1/shops/{id}/settings` |
+| Plugin | the zip of `bin/build-zip` installed with `wp plugin install` |
+| Shoppers | the real endpoints, driven by a script: the Store API (`cart/add-item`, `cart/apply-coupon`, `checkout`) for the block checkout, `?wc-ajax=apply_coupon`, `update_order_review` and `checkout` for the classic one; and two block checkouts by hand in the browser (a gift card and a discount code typed into the field, the order placed) |
+| Orders storage | HPOS on, then off (legacy posts table), the whole matrix in each |
+| Locale | `en_US`, then `tr_TR` for the customer's messages, the order notes and the Ayarlar screen |
+
+How the plugin reached the local Rewloy: `REWLOY_API_URL = http://localhost` (the plugin's existing override, D56), with the
+container's Apache proxying `/v1` and `/hooks` to the host; WooCommerce delivers its webhook to `http://localhost/hooks/…`
+(a must-use plugin of the harness lets `wp_safe_remote_request` reach localhost). The same must-use plugin can make the
+plugin's calls to a chosen path get no answer, which is how "Rewloy unreachable" and "the plugin's capture never arrives"
+were made without stopping Rewloy (one quote was also tried with Rewloy stopped).
+
+## Results
+
+Each scenario ran in four configurations: block checkout with HPOS on, classic with HPOS on, block with HPOS off,
+classic with HPOS off. "Passed" means the same in all four unless the row says otherwise.
+
+| # | Scenario | What was seen | Result |
+|---|---|---|---|
+| 1 | Cashback code, 40 TL on a 400 order, cash on delivery | coupon line "Rewloy: Cashback kartı −40,00 ₺" (classic) / the code's chip and "Discount −40,00 ₺" (block); total 360, KDV 60 (the base went down: `discount`); `hold −4000`, then at the paid status `release +4000`, `spend −4000`; notes "40,00 ₺ held … (card …XXXX)" and "40,00 ₺ taken from the card" | passed |
+| 2 | Gift card code, 40 TL (`tax: payment`) | a coupon of nothing ("taken as a payment, on its own line", classic) and a fee line "Rewloy: Hediye kartı −40,00 ₺" with tax 0; total 360, **KDV 66,67 unchanged**, in the cart and on the order | passed after a fix (defect 1) |
+| 2b | Gift card of 500 TL on a 120 TL order | the fee is capped by WooCommerce at the order's total before tax: −100, total 20 (the 20 KDV), hold and capture 100, 400 left on the card | as designed (D48, a known limit) |
+| 3 | Discount card, 15 % | `percent` coupon, −60; total 340; the hold reserves a use; capture writes the use (`uses` 1) | passed |
+| 4 | Coupon with a 50 TL online value | `fixed_cart` −50; captured; the coupon `redeemed` (single use); minting a new code for it is refused | passed |
+| 5 | Stamp card code, buyer's e-mail not the card holder's | "no discount: the order counts on this card"; hold of kind `link`; the paid webhook credited **this** card (`earn +1`, `store_order` credited, `earned_pass_id` set) | passed |
+| 6 | Refusals: a typo, another business's code, a used code, an expired code | "This Rewloy code is not valid…" (no call for the typo), the same for the foreign code, "This code was used on another order…", "This code has expired…"; nothing applied | passed (the foreign code in the two HPOS-on runs: the foreign card's three open codes were used up by then; the quote does not depend on order storage) |
+| 7a | Rewloy unreachable when the code is applied | "Rewloy cannot be reached right now…"; nothing applied, nothing kept | passed |
+| 7b | Rewloy unreachable when the order is placed | the checkout refused with the same message (block: a Store API error; classic: the notice), **no payment**; the order `unclear`, the note "no clear answer came; a release of any hold was asked for", a release scheduled; run, it released nothing (nothing was held) and cleared the flag | passed |
+| 8 | Bank transfer: held while on-hold, then marked paid | `held` while on-hold (KDV and total as in 1); captured at once when marked processing | passed |
+| 9 | Bank transfer, then cancelled | released at once, `release +2500`, note "released back to the card (the order was cancelled)" | passed |
+| 10 | Cheque, then failed | released, "(the payment failed)" | passed |
+| 11 | Full refund of a gift card order and of the stamp order | gift card: `refund +4000`, "refunded; 40,00 ₺ put back on the card"; stamp: the earn taken back (`adjust −1`), "What this order earned on the card (1 stamp) was taken back." | passed |
+| 12 | Partial refund | no call; "a partial refund does not change the card…" | passed |
+| 13 | Webhook backstop: the plugin's capture gets no answer | the order paid, the plugin's capture lost, a retry scheduled with its note; WooCommerce's signed `order.updated` delivery reached Rewloy and **Rewloy captured the hold**; the plugin's retry then found it captured and wrote "taken from the card" | passed |
+| 14 | Paid after the hold ran out, the balance spent meanwhile | hold expired by Rewloy's `expireHolds`; another order spent the card; the late payment: `409 HOLD_UNBACKED`, state `unbacked`, the note in plain words; Rewloy's count of unbacked uses shows on the Ayarlar screen | passed |
+| 15 | A Rewloy code applied to an order in the admin | "Rewloy codes are used at the checkout only."; no call | passed |
+| 16 | Two carts, two codes of one cashback card (60 + 50 of 100) | the first order held 60; the second checkout was refused at its hold, "Your card's balance is not enough for this code…", no payment | passed (block on `be16992`; classic, HPOS off, in Turkish on `c5f499b`) |
+| 17 | A gateway's `payment_complete()` on a bank-transfer order | the capture's note comes before the payment's: taken before the order turned paid | passed |
+| 18 | `shopper` and `orderTotalMinor` | Rewloy's `rate_limit` rows show per-shopper quote keys (`checkout:quote:<link>:<hash>`); holds were accepted with the order total sent | passed |
+| 19 | Turkish | the customer's messages ("Bu Rewloy kodu geçerli değil…"), the lines ("ödeme olarak ayrı satırda düşülür"), the notes ("Hediye kartı (kart …FM3N): 40,00 ₺ bu siparişe ayrıldı…", "iade edildi; 40,00 ₺ karta geri yüklendi…") and the Ayarlar section ("Ödeme adımında Rewloy kartları", "KDV değişmez, ödeme yerine geçer", "KDV matrahı düşer") | passed |
+| 20 | Ayarlar | the section reads the link's settings with their defaults; the save sent only what changed; a card's name shows once a code of it was used (before that "Card programme …xxxxxx"); no horizontal scroll at the pane's 337 px | passed (names: D54, a platform gap) |
+| 21 | Block checkout by hand in the browser (on `be16992`) | an invalid code's message under the field (escaped entities shown as text); the gift card chip `rw-tqyu-laex` and "Rewloy: Hediye kartı −40,00 ₺"; a discount typed as `rw xv5c rhbe` accepted; total 300, KDV 56,67; order placed, held and captured | passed |
+
+## Defects found and fixed
+
+1. **The block checkout made the gift card a discount on the order** (`Redeem::fee_item_taxes`). The cart showed 360 with the
+   full KDV, but the order was 352: the Store API recalculates the order's taxes, and WooCommerce splits a negative fee's tax
+   over the items there too (`WC_Order_Item_Fee::calculate_taxes`). The fee line is now named for its code and its tax is
+   emptied after that calculation (`woocommerce_order_item_fee_after_calculate_taxes`). Classic and block both 360 since.
+2. **A refund note of a stamp order spoke of coupons**, and a late capture after a release said the hold "had run out".
+   Reworded: "the order was refunded", "the hold had ended", and the unbacked note names both causes (spent, or closed).
+3. **`shopper` sent to a Rewloy that did not take it yet** (before the review fix) was a `400 VALIDATION`, which the
+   checkout showed as "cannot be used on this order". Rewloy takes it since `c5f499b`; the plugin sends it.
+
+## Seen and left alone
+
+- The block checkout's coupon chip shows the code as WooCommerce lowercases it (`rw-tqyu-laex`), not "Rewloy: <card>": the
+  Store API's coupon has no label (D47).
+- WooCommerce's own "Coupon code applied successfully." stays English without WooCommerce's Turkish language pack.
+- Each status change of an order sends another `order.updated`; Rewloy counts the order once, and its capture is idempotent.
+
+## Platform findings (Rewloy)
+
+- **The ceiling has no names** (`accepts.ceiling` is ids; the plugin's key may read only its own programme). The plugin's
+  Ayarlar can name a card only after a code of it was used, which needs the card switched on first. Suggested: give the
+  ceiling (and `programIds`) as `{ id, name, type }` in `GET /v1/shops/{id}`.
+- **A quote after the hold says `CODE_USED`** for the very order that holds the code (the quote has no order id). The plugin
+  keeps the session's quote for a held code and rebuilds it from the order's record otherwise (D50); an optional `orderId`
+  on the quote would make it exact.
+- **A merchant-released or expired hold cannot be held again by the same order** (`CODE_USED`, review M1): the customer is
+  told the code "was used on another order". A distinct code (say `CODE_RELEASED`) would let the shop say "make a new code"
+  without the wrong reason.
+- Not a bug: WooCommerce caps a negative fee at the order's total before tax, so "payment" mode cannot cover the tax (D48);
+  the design's "a gift card is a payment" holds for the part it covers.
+
+## Not verified
+
+WooCommerce 9.x and 10.x (only 11.1.2, the latest; the design asked for all three); card gateways and their redirects; a
+store with prices entered without tax and mixed tax rates (PHPUnit only, D55); multiple Rewloy codes of three cards in one
+real order (two were); the per-shopper and per-link miss budgets reaching their limits (Rewloy's own tests cover them);
+a hold left to run out by the real clock (the expiry was made by setting `held_until` and running `expireHolds`).
 
 # 0.3.0: the Rewloy menu
 

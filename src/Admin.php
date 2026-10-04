@@ -31,20 +31,28 @@ final class Admin {
 	private $redirect;
 	private ?Screens $screens;
 	private ?Panel $panel;
+	private ?CheckoutSettings $checkout;
 
 	/**
 	 * @param Settings                      $settings   The saved settings.
 	 * @param Connection                    $connection What the Ayarlar tab does.
 	 * @param (callable(string): void)|null $redirect   Replaces the redirect after an action (tests).
 	 * @param Panel|null                    $panel      The reads of the other tabs; made from the settings when null.
+	 * @param CheckoutSettings|null         $checkout   The checkout codes' settings; made from the settings when null.
 	 */
-	public function __construct( private Settings $settings, private Connection $connection, ?callable $redirect = null, ?Panel $panel = null ) {
+	public function __construct( private Settings $settings, private Connection $connection, ?callable $redirect = null, ?Panel $panel = null, ?CheckoutSettings $checkout = null ) {
 		$this->redirect = $redirect ?? static function ( string $url ): void {
 			wp_safe_redirect( $url );
 			exit;
 		};
-		$this->panel   = $panel;
-		$this->screens = null;
+		$this->panel    = $panel;
+		$this->screens  = null;
+		$this->checkout = $checkout;
+	}
+
+	private function checkout(): CheckoutSettings {
+		$this->checkout ??= new CheckoutSettings( $this->settings, Plugin::client_factory( $this->settings ) );
+		return $this->checkout;
 	}
 
 	private function panel(): Panel {
@@ -62,7 +70,7 @@ final class Admin {
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue' ) );
 		add_filter( 'submenu_file', array( $this, 'submenu_file' ), 10, 2 );
 		add_filter( 'plugin_action_links_' . plugin_basename( REWLOY_WC_FILE ), array( $this, 'action_links' ) );
-		foreach ( array( 'connect_code', 'save_key', 'forget_key', 'connect', 'toggle', 'disconnect', 'reactivate', 'save_options' ) as $action ) {
+		foreach ( array( 'connect_code', 'save_key', 'forget_key', 'connect', 'toggle', 'disconnect', 'reactivate', 'save_options', 'save_checkout' ) as $action ) {
 			add_action( 'admin_post_rewloy_wc_' . $action, array( $this, 'handle_' . $action ) );
 		}
 	}
@@ -281,6 +289,11 @@ final class Admin {
 		);
 	}
 
+	/** The checkout codes' settings (0.4.0): saved in Rewloy; an administrator's to change (D45's pattern). */
+	public function handle_save_checkout(): void {
+		$this->act( 'save_checkout', fn(): Result => $this->checkout()->save( $this->posted(), current_user_can( 'manage_options' ) ) );
+	}
+
 	/**
 	 * The one door of every action: capability first, then the nonce, then the work, then a redirect back with a message.
 	 *
@@ -380,7 +393,9 @@ final class Admin {
 	private function render_settings(): void {
 		echo '<p>' . esc_html__( 'Paid orders fill the loyalty cards of Rewloy customers.', 'rewloy-for-woocommerce' ) . '</p>';
 		if ( $this->settings->is_connected() ) {
-			$this->section_connected();
+			$health = $this->connection->health();
+			$this->section_connected( $health );
+			$this->section_checkout( $health['link'] );
 			$this->section_options();
 		} elseif ( 'none' === $this->settings->key_source() ) {
 			$this->section_code();
@@ -516,9 +531,11 @@ final class Admin {
 		echo '<p class="description">' . esc_html__( 'Connecting creates the link in Rewloy and a WooCommerce webhook (topic "Order updated") that this plugin keeps.', 'rewloy-for-woocommerce' ) . '</p>';
 	}
 
-	private function section_connected(): void {
+	/**
+	 * @param array{link:?array<string,mixed>,orders:list<array<string,mixed>>,error:string,key_rejected:bool,webhook:array{exists:bool,status:string,failures:int,edit_url:string}} $health
+	 */
+	private function section_connected( array $health ): void {
 		$s      = $this->settings->get();
-		$health = $this->connection->health();
 		$link   = $health['link'];
 		$on     = null === $link ? null : ! empty( $link['enabled'] );
 
@@ -615,6 +632,106 @@ final class Admin {
 		echo '</tbody></table></div>';
 	}
 
+	/**
+	 * Rewloy cards at the checkout (0.4.0): what the shop takes and how, each a setting with Rewloy's default (§12).
+	 *
+	 * @param array<string,mixed>|null $link The link as Rewloy has it (null when it could not be read).
+	 */
+	private function section_checkout( ?array $link ): void {
+		echo '<h2 id="rewloy-checkout">' . esc_html__( 'Rewloy cards at the checkout', 'rewloy-for-woocommerce' ) . '</h2>';
+		echo '<p>' . esc_html__( 'A customer can use a Rewloy card when paying: on the card (its page or Rewloy Cüzdan) they make a one-time code, RW-XXXX-XXXX, and type it into the coupon field at checkout. The value is held when the order is placed, taken from the card when the order is paid, and given back when it is cancelled or fails.', 'rewloy-for-woocommerce' ) . '</p>';
+		if ( function_exists( 'wc_coupons_enabled' ) && ! wc_coupons_enabled() ) {
+			echo '<div class="notice notice-warning inline"><p>' . esc_html__( 'Coupons are turned off in WooCommerce, so the checkout has no coupon field and no Rewloy code can be typed. Turn them on in WooCommerce › Settings › General › "Enable the use of coupon codes".', 'rewloy-for-woocommerce' ) . '</p></div>';
+		}
+		if ( null === $link ) {
+			echo '<p class="description">' . esc_html__( 'The settings could not be read from Rewloy just now (see the message above).', 'rewloy-for-woocommerce' ) . '</p>';
+			return;
+		}
+		$v     = CheckoutSettings::view( $link );
+		$s     = $this->settings->get();
+		$admin = current_user_can( 'manage_options' );
+		$off   = $admin ? '' : ' disabled="disabled"';
+		if ( $v['unbacked'] > 0 ) {
+			/* translators: %d: how many code uses were not backed. */
+			echo '<div class="notice notice-warning inline"><p>' . esc_html( sprintf( __( '%d code uses were paid after their hold had run out, when the card no longer had the value. Rewloy lists them on the shop\'s page in the panel (E-ticaret › the shop).', 'rewloy-for-woocommerce' ), $v['unbacked'] ) ) . '</p></div>';
+		}
+		$this->form_open( 'save_checkout' );
+		echo '<table class="form-table" role="presentation"><tbody>';
+
+		echo '<tr><th scope="row">' . esc_html__( 'Cards this shop takes', 'rewloy-for-woocommerce' ) . '</th><td><fieldset>';
+		echo '<p><label><input type="checkbox" checked="checked" disabled="disabled" /> ' . esc_html( $s['program_name'] . ' (' . Messages::type_label( $s['program_type'] ) . ')' ) . '</label> <span class="description">' . esc_html__( 'this shop\'s own card: always', 'rewloy-for-woocommerce' ) . '</span></p>';
+		if ( null === $v['ceiling'] ) {
+			echo '<p class="description">' . esc_html__( 'This shop was connected with an API key of your own, so the cards it takes are what that key may use; change them in the Rewloy panel.', 'rewloy-for-woocommerce' ) . '</p>';
+		} elseif ( array() === $v['ceiling'] ) {
+			echo '<p class="description">' . esc_html__( 'No other card can be switched on here. A person with the rights decides which of the business\'s gift cards, cashback cards, coupons and discount cards this plugin may switch on, on the shop\'s page in the Rewloy panel ("Eklentinin açabileceği kartlar").', 'rewloy-for-woocommerce' ) . '</p>';
+		} else {
+			echo '<input type="hidden" name="accepts_shown" value="1" />';
+			$names = $this->checkout()->names( $v['ceiling'] );
+			foreach ( $v['ceiling'] as $id ) {
+				$label = isset( $names[ $id ] )
+					? $names[ $id ]['name'] . ( '' !== $names[ $id ]['type'] ? ' (' . Messages::any_type_label( $names[ $id ]['type'] ) . ')' : '' )
+					/* translators: %s: the last characters of a card programme's id. */
+					: sprintf( __( 'Card programme …%s', 'rewloy-for-woocommerce' ), substr( $id, -6 ) );
+				echo '<p><label><input type="checkbox" name="accepts[]" value="' . esc_attr( $id ) . '"' . checked( in_array( $id, $v['accepted'], true ), true, false ) . $off . ' /> ' . esc_html( $label ) . '</label></p>';
+			}
+			echo '<p class="description">' . esc_html__( 'Off by default. The business\'s other gift cards, cashback cards, coupons and discount cards, among those a person allowed for this plugin in the Rewloy panel. A card switched off refuses new codes at once; orders already holding it finish as they are.', 'rewloy-for-woocommerce' ) . '</p>';
+			if ( count( $names ) < count( $v['ceiling'] ) ) {
+				echo '<p class="description">' . esc_html__( 'Rewloy does not tell this shop\'s key the names of cards other than its own; a card shows its name here once a code of it has been used on an order. The shop\'s page in the Rewloy panel lists them all.', 'rewloy-for-woocommerce' ) . '</p>';
+			}
+		}
+		echo '</fieldset></td></tr>';
+
+		echo '<tr><th scope="row">' . esc_html__( 'Tax', 'rewloy-for-woocommerce' ) . '</th><td>';
+		echo '<p class="description">' . esc_html__( 'How a card\'s value goes on the order and the invoice. Which is right for your invoices is for your accountant to say; the plugin does not decide it.', 'rewloy-for-woocommerce' ) . '</p>';
+		$kinds = array(
+			'giftcard' => __( 'Gift card', 'rewloy-for-woocommerce' ),
+			'cashback' => __( 'Cashback card', 'rewloy-for-woocommerce' ),
+			'voucher'  => __( 'Coupon with a money value', 'rewloy-for-woocommerce' ),
+		);
+		foreach ( $kinds as $kind => $name ) {
+			echo '<fieldset style="margin:.75em 0"><legend><strong>' . esc_html( $name ) . '</strong></legend>';
+			foreach ( CheckoutSettings::TAX_MODES as $mode ) {
+				$default = CheckoutSettings::DEFAULT_TAX[ $kind ] === $mode ? ' ' . __( '(default)', 'rewloy-for-woocommerce' ) : '';
+				echo '<p><label><input type="radio" name="' . esc_attr( 'tax_' . $kind ) . '" value="' . esc_attr( $mode ) . '"' . checked( $v['tax'][ $kind ], $mode, false ) . $off . ' /> ' . esc_html( self::tax_words( $mode ) . $default ) . '</label></p>';
+			}
+			echo '</fieldset>';
+		}
+		echo '<p class="description">' . esc_html__( 'A discount card\'s percent is always a discount. WooCommerce lets a payment line take off at most the order\'s total before tax; any rest of the card\'s value stays on the card, and the order\'s tax is paid another way.', 'rewloy-for-woocommerce' ) . '</p>';
+		echo '</td></tr>';
+
+		echo '<tr><th scope="row">' . esc_html__( 'Refunded orders', 'rewloy-for-woocommerce' ) . '</th><td><fieldset>';
+		$refund = array(
+			'code_orders' => __( 'Take back what an order earned on the card when the order used a Rewloy code', 'rewloy-for-woocommerce' ),
+			'all'         => __( 'Take back what any refunded order earned on the card', 'rewloy-for-woocommerce' ),
+			'never'       => __( 'Never take back what an order earned', 'rewloy-for-woocommerce' ),
+		);
+		foreach ( $refund as $value => $words ) {
+			$default = CheckoutSettings::DEFAULT_REFUND === $value ? ' ' . __( '(default)', 'rewloy-for-woocommerce' ) : '';
+			echo '<p><label><input type="radio" name="refund_reverses" value="' . esc_attr( $value ) . '"' . checked( $v['refundReverses'], $value, false ) . $off . ' /> ' . esc_html( $words . $default ) . '</label></p>';
+		}
+		echo '<p class="description">' . esc_html__( 'Only an order refunded in full. What a card paid is always put back on it once; a stamp, point or cashback the order earned is taken back as chosen here, never below zero.', 'rewloy-for-woocommerce' ) . '</p>';
+		echo '</fieldset></td></tr>';
+
+		echo '<tr><th scope="row"><label for="rewloy_hold_days">' . esc_html__( 'Hold length', 'rewloy-for-woocommerce' ) . '</label></th><td>';
+		echo '<input type="number" name="hold_days" id="rewloy_hold_days" min="1" max="30" step="1" value="' . esc_attr( (string) $v['holdDays'] ) . '"' . $off . ' /> ' . esc_html__( 'days (default 7)', 'rewloy-for-woocommerce' );
+		echo '<p class="description">' . esc_html__( 'An order that is placed but not paid gives the value back to the card after this many days at the latest (a bank transfer can take days). A cancelled or failed order gives it back at once.', 'rewloy-for-woocommerce' ) . '</p></td></tr>';
+
+		echo '</tbody></table>';
+		if ( $admin ) {
+			submit_button( __( 'Save the checkout settings', 'rewloy-for-woocommerce' ) );
+		} else {
+			echo '<p class="description">' . esc_html__( 'Only an administrator can change these.', 'rewloy-for-woocommerce' ) . '</p>';
+		}
+		echo '</form>';
+	}
+
+	/** What a tax treatment does to the order and the invoice, in plain words. */
+	private static function tax_words( string $mode ): string {
+		return 'payment' === $mode
+			? __( 'As a payment, after tax: a line of its own lowers what is paid; the KDV of the goods stays as it is', 'rewloy-for-woocommerce' )
+			: __( 'As a discount, before tax: a coupon lowers the price; the KDV base goes down', 'rewloy-for-woocommerce' );
+	}
+
 	private function section_options(): void {
 		$s = $this->settings->get();
 		echo '<h2>' . esc_html__( 'On your shop', 'rewloy-for-woocommerce' ) . '</h2>';
@@ -645,6 +762,7 @@ final class Admin {
 		echo '<li>' . esc_html__( 'For each order update, the webhook sends the order\'s number, status, currency and total, signed with a secret only this shop and Rewloy have, and the billing e-mail once the order is processing or completed. Nothing else of the order (no names, addresses, phone numbers or items). Rewloy stores only the order number, its outcome and the time.', 'rewloy-for-woocommerce' ) . '</li>';
 		echo '<li>' . esc_html__( 'If you turn on the invitation, the billing e-mail of an order whose box was ticked is sent once, to open the card.', 'rewloy-for-woocommerce' ) . '</li>';
 		echo '<li>' . esc_html__( 'On the Cards and Till tabs: the card number typed or scanned (only the number: the rest of a scanned card link, its private key included, is dropped at once), and on the till the paid total and the receipt number typed there. Rewloy sends this site no customer\'s name, e-mail or phone, and the screens show none.', 'rewloy-for-woocommerce' ) . '</li>';
+		echo '<li>' . esc_html__( 'When a customer types a Rewloy code at checkout: the code and the basket\'s currency (to ask what it gives), then the order\'s number and what the order took from the code (to hold, take, release or refund it). Rewloy answers with the card\'s programme, kind and last four characters, never the customer\'s name, e-mail or the card number.', 'rewloy-for-woocommerce' ) . '</li>';
 		echo '<li>' . esc_html__( 'Nothing else, and no tracking. The My Account tab sends nothing.', 'rewloy-for-woocommerce' ) . '</li>';
 		echo '</ul>';
 		echo '<p class="description">' . esc_html__( 'Deleting this plugin removes its settings, its key and its webhook from this site. It does not delete anything in Rewloy: the link, the key a connect code made and the cards stay until you delete them in the Rewloy panel (deleting the link revokes the key).', 'rewloy-for-woocommerce' ) . '</p>';

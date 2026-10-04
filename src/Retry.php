@@ -45,13 +45,16 @@ final class Retry {
 	/**
 	 * How many more attempts a request may have after the first: a safe method gets MAX_RETRIES; a POST that carries
 	 * an Idempotency-Key gets MAX_RETRIES_KEYED, because Rewloy replays the first answer for the same key and body
-	 * instead of doing the work twice (issuePass, since 4 Oct 2026); any other POST none.
+	 * instead of doing the work twice (issuePass, since 4 Oct 2026); a POST Rewloy keys on its own natural key
+	 * (`$repeatable`, the checkout code's steps) gets MAX_RETRIES; any other POST none.
 	 */
-	public static function retries_for( string $method, string $idempotency_key ): int {
+	public static function retries_for( string $method, string $idempotency_key, bool $repeatable = false ): int {
 		if ( '' !== $idempotency_key && 'POST' === strtoupper( $method ) ) {
 			return self::MAX_RETRIES_KEYED;
 		}
-		return self::safe_method( $method ) ? self::MAX_RETRIES : 0;
+		// A POST whose identity is its own natural key (the checkout code's quote, hold, capture, release and refund:
+		// Rewloy answers a repeat with what the order's redemptions are now, 0.4.0) is as safe to repeat as a PUT.
+		return self::safe_method( $method ) || $repeatable ? self::MAX_RETRIES : 0;
 	}
 
 	/** The wait before the retry after attempt `$attempt` (0-based), in seconds, with jitter. */

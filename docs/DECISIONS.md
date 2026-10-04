@@ -618,6 +618,150 @@ the same (without the key) reuses the pending key; a different write is refused 
 answer. Only a clear answer (written, or refused by Rewloy) unlocks. Reading a card stays possible meanwhile.
 Checked in Chromium with the real markup and a mocked admin-ajax: two lost answers, a reload, and one key for all.
 
+## 0.4.0: a Rewloy card at the checkout (Rewloy ADR 179)
+
+Stage 4 of Rewloy's docs/CHECKOUT-CARDS.md: the plugin's side of "checkout cards", built against the platform's
+`checkout-cards` branch after its security review (`c5f499b`, migration 0074) and run on a real store
+(docs/VERIFIED.md). The owner's rule (§12): every choice is a per-shop setting with a default, editable in WordPress.
+
+**D47. The code is a virtual coupon, and only a Rewloy code is.** `Redeem::coupon_data` (`woocommerce_get_shop_coupon_data`)
+answers a coupon code that looks like `RW` and eight letters or digits, after dashes and spaces are taken out and the
+case is ignored (WooCommerce lowercases codes; `rw xv5c rhbe` works). Anything else is left to WooCommerce untouched.
+- **A typo is caught without a call**: the eighth character is a check character (weights 1, 3, …, 13 mod 32, as
+  Rewloy computes it, pinned by codes the real Rewloy minted). It says "not valid" and counts as a miss (D49).
+- **The shop's own coupon of the same letters wins** (`wc_get_coupon_id_by_code`): Rewloy codes are random and a
+  collision is the customer's to fix with a new code, never the shop's coupon broken.
+- **Not connected: no Rewloy code is answered** (WooCommerce says the coupon does not exist), as §10.6 says.
+- **In the admin** (applying a coupon to an order by hand, admin-ajax) the code is refused without a call: "Rewloy
+  codes are used at the checkout only". An admin "Recalculate" of a placed order is safe: WooCommerce rebuilds a virtual
+  coupon from the order's stored coupon data, not through this filter.
+- `individual_use` false (a Rewloy code adds to the shop's own coupons), **no `usage_limit`**: single use is Rewloy's to
+  keep (a code attaches to one order); WooCommerce's usage count means nothing for a coupon with no id and only costs a
+  query. Decided by default against §10.1's `usage_limit 1`.
+- The coupon by kind (the quote's `kind` and `tax`): a cashback card's or a money coupon's value is a `fixed_cart`
+  coupon of what it may take; a discount card, or a coupon whose online value is a percent, a `percent` coupon; a stamp,
+  points or VIP card (`link`) a coupon of nothing whose line reads "no discount: the order counts on this card"; a value
+  the shop treats as a payment, a coupon of nothing and the fee of D48. Classic checkout labels the line "Rewloy:
+  <card>". **The block checkout shows the code itself** in its coupon chip (the Store API's coupon has no label): what
+  the customer typed, lowercased by WooCommerce, which §10.1 accepts; the value is on its own line ("Discount", or the
+  payment line).
+
+**D48. A payment is a negative, untaxed fee, in the cart and on the order.** For `tax: payment` (a gift card by default,
+cashback or a money coupon when the shop says so) the coupon carries no amount and `add_fees` adds a fee of minus what
+the code may take, id `rewloy-<ref>`, not taxable. Two things on the real store:
+- **WooCommerce splits a negative fee's tax over the cart whatever its `taxable` flag** (`WC_Cart_Totals::get_fees_from_cart`),
+  which makes it a discount. The plugin empties the tax of its own fee (`woocommerce_cart_totals_get_fees_from_cart_taxes`).
+- **The order works its taxes out again, and does it again there** (`WC_Order_Item_Fee::calculate_taxes`, which the block
+  checkout runs while making the order; the admin's "Recalculate" too). Before the fix a 400 order with a 40 gift card
+  was 360 in the cart and **352 on the order**, with the KDV down by 8 (seen on the real store, block checkout). Now the
+  fee line is named for its code (meta `_rewloy_code_ref`, `woocommerce_checkout_create_order_fee_item`) and
+  `woocommerce_order_item_fee_after_calculate_taxes` empties its tax: 360 and the full KDV in the cart, on the order and
+  in both checkouts.
+- **WooCommerce caps a negative fee at the order's total before tax** (`max_discount` in the same function, items and
+  shipping without tax). A 500 gift card on a 120 order (100 + 20 KDV) pays 100; the customer pays the 20 of tax another
+  way and 400 stays on the card. The hold is the fee's final amount, read from the order, so nothing is ever taken that
+  the order did not get. No way around it without a payment gateway of its own; the Ayarlar screen and the FAQ say so,
+  and "As a discount" is one click away. Not a fallback to a coupon: the cap is WooCommerce working as designed (§2.3's
+  fallback was for a fee that misbehaves).
+
+**D49. The session.** A successful quote is kept in the WooCommerce session for five minutes, under the normalised code
+(WooCommerce builds a coupon many times a request); a refusal never is. A code held for an order stays answered for that
+order past five minutes (Rewloy would now call it used); emptying the cart (after an order) forgets them all; removing a
+code forgets it unless an order holds it. Five refused codes (typos, `CODE_INVALID`, `CODE_EXPIRED`, `CODE_USED`) in ten
+minutes stop the session asking for a while; Rewloy's own budgets are per link and, since its review, per shopper.
+**The quote carries `shopper`**: HMAC-SHA256 of the WooCommerce customer id (a user's id, else the session's own key)
+under the site's secret (`wp_salt('auth')`), 32 hex characters; the id never leaves the site. At most three Rewloy codes
+an order and one a card (the quote's opaque `cardId`), said before Rewloy is asked to hold.
+
+**D50. The hold, before any payment, or no order.** Classic `woocommerce_checkout_order_processed`, block
+`woocommerce_store_api_checkout_order_processed` (a `RouteException`, which the Store API answers as an error the checkout
+shows). Both fire after the order exists and before the gateway is called (read in WooCommerce 11.1.2's source and seen).
+- **The amount is what the order actually got**: the coupon line's discount plus its tax (what the customer saved), or
+  the payment line's final amount; `orderTotalMinor` (the order's total before discounts) is always sent, as Rewloy's
+  review asks. A value coupon that would save more than the code holds cannot happen (D55); if it did, Rewloy refuses
+  and so does the order.
+- **A refusal** forgets the code in the session, lets go of the order's other holds (`release`, reason `shop`, inside the
+  code's 45 minutes Rewloy lets the order hold again) and stops the checkout with the customer's message (§10.4's table).
+- **No clear answer** (8 seconds, one retry with the same natural key) refuses the checkout with "Rewloy cannot be
+  reached", marks the order `unclear`, notes it, and schedules a release in a minute: safe whether or not a hold exists.
+  The release runs only while the order is still `unclear` and unpaid; a clear hold later clears the flag and calls off
+  the pending release.
+- **A pending order paid again with other codes** (the customer removed one and retried): holds of codes the order no
+  longer carries are released first, then the order's codes are held (a re-hold of a released one, inside 45 minutes).
+- **A code the order already holds, its session quote gone**: Rewloy says `CODE_USED` (it is used, by this order); the
+  plugin rebuilds the quote from what the order recorded of it (kind, programme, and the payment mode from the order's
+  own fee line) and holds again, which Rewloy answers as it stands.
+
+**D51. The capture: before the order is marked paid, where the gateway allows.** Rewloy's review: the signed paid webhook
+takes the WHOLE hold when it arrives first. So the capture runs in `woocommerce_pre_payment_complete` (a gateway's
+`payment_complete()`, before the status changes and before the webhook is queued) and, for orders marked paid otherwise
+(cash on delivery, bank transfer marked by hand), at once in the `processing`/`completed` change itself, not through
+Action Scheduler. The plugin always captures the whole hold, so the webhook's full capture never differs from it; no
+partial capture or refund-of-the-difference is needed (decided by default; an order edited by hand after its hold is a
+known limit). An unclear capture is tried again after 5 minutes, an hour and six hours (D29's delays) with a note the
+first time; Rewloy's webhook does the same work meanwhile (seen: the plugin's capture blocked, the webhook took it, the
+plugin's next try found it taken and noted it). After the last try a note says to look in the panel. `PASS_INACTIVE` (a card
+closed since) is noted, not retried; `HOLD_UNBACKED` (paid after the hold ended, and the card no longer had it, spent or
+closed) is said in plain words and counted by Rewloy on the shop's page.
+
+**D52. Release and refund.** `cancelled` and `failed` release at once (reason as the status); each step reads the order
+again first and does nothing if the order has moved on (a cancelled order paid again is captured, not released). A full
+refund (`refunded`) asks Rewloy's refund with no amount: every captured value back once, and the order's own earn taken
+back as the shop's setting says; the note says what was put back and what was taken back, and what could not be
+(`short`). A partial refund (`woocommerce_order_partially_refunded`) changes nothing on the card and writes §10.5's note,
+once a card paid; partial refunds stay the merchant's in the Rewloy panel (§3.7), so the plugin never sends one and
+Rewloy's key-bound-to-amount rule (review L4) never applies to it.
+
+**D53. What the order keeps.** `_rewloy_redemptions`: a JSON list of what Rewloy last answered (id, the code's `ref`
+and last four, the card's last four, kind, type, programme, amounts, currency, state, generation, late), never the code
+or the card's serial (tests pin it; WooCommerce itself stores the code on the coupon line, which §10.2 accepts). Notes
+are written only for a change (state, generation or amount). `RedeemCode::ref` is 16 hex characters of a keyed hash
+(`wp_hash`), so the fee line can be tied to its coupon line without the code.
+
+**D54. Ayarlar: §12's settings, from Rewloy, administrators only.** "Rewloy cards at the checkout" under Rewloy ›
+Settings reads `GET /v1/shops/{id}` (the same read as the health rows) and saves `PATCH /v1/shops/{id}/settings` with only
+what differs: the cards the shop takes (its own always; the business's other code cards as checkboxes within the
+ceiling, all off by default), the tax treatment of a gift card, a cashback card and a money coupon (each with what it
+does to the invoice, "KDV değişmez, ödeme yerine geçer" / "KDV matrahı düşer", the default marked, and "your accountant
+decides"), what a refunded order takes back, and the hold length (1–30 days). Shop managers see it with the controls
+disabled and the save refuses them (D45's pattern: `manage_options`). A connection made with a key of one's own has no
+ceiling; the screen says its cards are what that key may use. A warning shows when WooCommerce's coupons are off (no
+coupon field, no code can be typed).
+- **The ceiling's names are not Rewloy's to give the key** (a platform gap, reported): `accepts.ceiling` is ids only and
+  the key's `programs.read` covers its own programme only. The screen names a card from the codes the shop's orders have
+  seen (an option, `rewloy_wc_seen_programs`, filled from hold answers, removed on uninstall), else "Card programme …1a2b3c",
+  and says the panel's shop page names them all. On a fresh connection every other card is nameless until it is used,
+  which it cannot be until it is switched on: the platform should add `{id, name, type}` to the ceiling.
+
+**D55. A value coupon never saves more than the code holds.** WooCommerce takes a `fixed_cart` amount as prices are
+entered: with tax when prices include tax (Turkish shops, usually), without tax otherwise, where a 40 coupon would save 48
+with KDV. With prices without tax the coupon's amount is the value without the cart's tax ratio, and after the totals
+(`woocommerce_after_calculate_totals`) the saving (discount and its tax) is checked against the value; over it, the amount
+is lowered and the totals worked out again (at most three passes). Nothing above the value ever reaches the hold.
+
+**D56. No second base-URL override.** The brief allowed a `REWLOY_API_BASE` "if it has none". The plugin has one since
+0.1 (`REWLOY_API_URL`, https or localhost only), and the run used it as 0.2.0's did: `http://localhost` inside the
+WordPress container, whose Apache proxies `/v1` and `/hooks` to the local Rewloy on the host. Adding a laxer constant
+(plain http to any host) would widen what a stray wp-config.php line can do for no gain.
+
+**D57. Steps keyed on their natural key are retried like a read.** `Retry::retries_for( …, $repeatable )`: quote, hold,
+capture, release and refund are answered by Rewloy with what the order's codes are now (no `Idempotency-Key`, §4.4), so a
+repeat after a lost answer is safe; one retry, as for a GET. Inside the customer's request the time limit is 8 seconds
+(§10.3), 5 for a step in a status change.
+
+**D58. The plugin takes no switch of its own for codes.** The shop's own card always takes codes (Rewloy's rule); the
+other cards are off until switched on; pausing the link stops codes too (`SHOP_PAUSED`). A merchant who wants no codes at
+all turns coupons off in WooCommerce or switches nothing on; a separate WordPress switch would be a second place to
+disagree with the panel (decided by default).
+
+**Known limits (0.4.0)**
+- A payment line (a gift card by default) pays at most the order's total before tax (D48).
+- An order edited by hand after its hold (items or coupons changed in the admin) is captured at what was held.
+- A code released by the merchant or expired cannot be held again for the same order: the customer makes a new code
+  (Rewloy's review, M1); the message says "used on another order", Rewloy's code for it.
+- The block checkout's coupon chip shows the code, not "Rewloy: <card>" (D47).
+- The other cards' names (D54).
+
 **What the platform could still add** (for the next brief): `listShopOrders` filterable by
 `orderId` (or an `order` in `getPass`), so the plugin could check an `unknown` order against
 Rewloy before repeating it and not only trust the key; a way to read a connect answer again
@@ -626,6 +770,12 @@ a lost answer would not cost a link and a new code; and replay for longer than s
 way to ask whether a key is still remembered.
 
 ## Still not verified
+
+- 0.4.0's checkout codes were run against the real Rewloy locally (docs/VERIFIED.md, 0.4.0): WooCommerce 11.1.2 only
+  (the design asked for 9.x and 10.x too; only the latest installs from wordpress.org without pinning, and the hooks used
+  exist since 8.x by their source); real card gateways (cash on delivery, bank transfer and cheque were used, and a
+  gateway's `payment_complete()` was called on a bank-transfer order: captured before the status changed); a store with prices entered without tax (PHPUnit
+  only); mixed tax rates.
 
 - The real Rewloy was run locally for 0.2.0 (docs/VERIFIED.md): spending a code, the key, replay,
   `order.result`, resend, health, the test environment. What stays unverified there: Rewloy's

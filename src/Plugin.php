@@ -13,7 +13,7 @@ defined( 'ABSPATH' ) || exit;
 
 final class Plugin {
 
-	public const VERSION = '0.3.0';
+	public const VERSION = '0.4.0';
 	/** Set when the My Account tab is turned on or off, so the rewrite rules are flushed once. */
 	public const FLUSH_OPTION = 'rewloy_wc_flush_rewrite';
 	public const TEXT_DOMAIN  = 'rewloy-for-woocommerce';
@@ -52,6 +52,11 @@ final class Plugin {
 		$webhooks->register();
 		$issuer = new Issuer( $settings, $factory, null, $webhooks );
 		( new Checkout( $settings, $issuer ) )->register();
+		// A Rewloy card at the checkout (0.4.0): the code as a coupon in the cart, and its hold on the order.
+		// The quote carries an opaque hash of the shopper, so one shopper's tries do not spend the shop's budget (ADR 179's review, M2).
+		$redeem = new Redeem( $settings, $factory, null, null, null, true );
+		$redeem->register();
+		( new Holds( $settings, $factory, $redeem ) )->register();
 		( new Account( $settings ) )->register();
 		if ( is_admin() ) {
 			( new Capability( $settings ) )->register();

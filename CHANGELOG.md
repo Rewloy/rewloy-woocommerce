@@ -6,6 +6,42 @@ https://rewloy.com/gelistiriciler/degisiklikler
 This plugin's releases. The API's own changes are listed at the link above.
 Every decision and its reason: [docs/DECISIONS.md](docs/DECISIONS.md).
 
+## 0.4.0 (4 Oct 2026)
+
+Ödeme adımında Rewloy kartları: müşteri kartından aldığı tek kullanımlık kodu kupon alanına yazar.
+
+Rewloy cards at the checkout: the customer types a one-time code from their card into the coupon field. Needs
+Rewloy with ADR 179 (and its review fixes, `5328c90`/`c5f499b` on `checkout-cards`). Decisions D47–D58.
+
+- **The code as a virtual coupon** (`Redeem`, D47): `woocommerce_get_shop_coupon_data` answers a code that looks like
+  `RW-XXXX-XXXX` with Rewloy's quote: a cashback card or a money coupon a `fixed_cart` discount of what it may take, a
+  discount card (or a percent coupon) a `percent` one, a stamp, points or VIP card a coupon of nothing that ties the
+  order to the card. A typo is caught by the check character without a call; the shop's own coupon of the same letters
+  wins; not connected, no Rewloy code is answered; in the admin a code is refused without a call.
+- **A gift card is a payment** (D48): a coupon of nothing plus a negative, non-taxable fee line, with its tax removed
+  in the cart (`woocommerce_cart_totals_get_fees_from_cart_taxes`) and when the order works its taxes out again
+  (`woocommerce_order_item_fee_after_calculate_taxes`; the block checkout does that, and charged 352 instead of 360
+  before this, found on the real store). The KDV stays as it is. The tax treatment of each kind is the shop's setting.
+- **Hold, capture, release, refund** (`Holds`, D50–D53): the hold before payment in both checkouts (a refusal or an
+  unclear answer refuses the order; unclear also asks for a release), with `orderTotalMinor`; the capture as soon as
+  the gateway says paid (`woocommerce_pre_payment_complete`) or the order turns processing/completed; the release on
+  cancelled/failed; the refund on a full refund (with what the order earned taken back, as Rewloy reports it); a note
+  only on a partial refund. Unclear steps are tried again after 5 minutes, an hour and six hours; Rewloy's signed
+  order webhook does the same work meanwhile. Every answer is in `_rewloy_redemptions` and in the order notes.
+- **The session** (D49): a quote is kept five minutes (and for as long as an order holds the code); five refused codes
+  in ten minutes stop a session; at most three codes an order, one a card; the quote carries an opaque per-shopper
+  hash (`shopper`, HMAC-SHA256 under the site's secret).
+- **Ayarlar** (`CheckoutSettings`, D54): the §12 settings with Rewloy's defaults, read with `GET /v1/shops/{id}` and
+  saved with `PATCH /v1/shops/{id}/settings` (only what changed): cards the shop takes within the ceiling, tax per kind
+  in plain words with "ask your accountant", refunded orders, hold length 1–30 days. Administrators only.
+- New `Client` calls: `quote_code`, `hold_code`, `order_redemptions`, `capture_order`, `release_order`, `refund_order`,
+  `update_shop_settings`, `with_timeout`; a POST keyed on its own natural key is retried once (`Retry`).
+- Uninstall also removes the remembered card names and the scheduled checkout steps.
+- Verified on a real WordPress 7.1.2 / WooCommerce 11.1.2 against the real Rewloy, classic and block checkout, HPOS on
+  and off: docs/VERIFIED.md.
+- Turkish for every new string; `.pot`, `.po` and `.mo` rebuilt. 470 PHPUnit tests (88 new); PHPStan level 8 and
+  `bin/lint` clean.
+
 ## 0.3.0 (4 Oct 2026)
 
 WordPress'te küçük bir Rewloy paneli: özet, kartlardaki işlemler ve kasa. Neler yapabileceğini Rewloy
