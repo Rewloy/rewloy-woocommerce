@@ -70,6 +70,48 @@ final class WebhooksTest extends TestCase {
 		}
 	}
 
+	/** The REST payload is built as the webhook's user: deleted or demoted, WooCommerce hands over an error array. */
+	public function test_the_body_comes_from_the_order_when_the_rest_payload_is_an_error(): void {
+		$hooks = new Webhooks( $this->connected() );
+		$order = new \WC_Order( 55, 'processing', 'ayse@example.com' );
+		$order->total = '250';
+		$error = array(
+			'code'    => 'woocommerce_rest_cannot_view',
+			'message' => 'Sorry, you cannot view this resource.',
+			'data'    => array( 'status' => 401 ),
+		);
+		$this->assertSame(
+			array(
+				'id'       => 55,
+				'number'   => '55',
+				'status'   => 'processing',
+				'currency' => 'TRY',
+				'total'    => '250.00',
+				'billing'  => array( 'email' => 'ayse@example.com' ),
+			),
+			$hooks->trim_payload( $error, 'order', 55, 41 )
+		);
+		foreach ( array( 'pending', 'on-hold', 'cancelled', 'refunded' ) as $status ) {
+			$order->set_status( $status );
+			$out = $hooks->trim_payload( $error, 'order', 55, 41 );
+			$this->assertSame( $status, $out['status'] );
+			$this->assertSame( '', $out['billing']['email'], $status );
+		}
+		$order->set_status( 'completed' );
+		$this->assertSame( 'ayse@example.com', $hooks->trim_payload( $error, 'order', 55, 41 )['billing']['email'] );
+	}
+
+	public function test_the_order_wins_over_the_payload_and_nothing_else_of_it_is_sent(): void {
+		$hooks = new Webhooks( $this->connected() );
+		new \WC_Order( 55, 'completed', 'ayse@example.com' );
+		$out = $hooks->trim_payload( $this->fullOrder(), 'order', 55, 41 );
+		$this->assertSame( array( 'id', 'number', 'status', 'currency', 'total', 'billing' ), array_keys( $out ) );
+		$this->assertSame( array( 'email' ), array_keys( $out['billing'] ) );
+		foreach ( array( 'Ayşe', 'Yılmaz', 'Gizli Sokak', '+90555', 'Başka', 'Kahve', '1.2.3.4' ) as $private ) {
+			$this->assertStringNotContainsString( $private, (string) json_encode( $out ) );
+		}
+	}
+
 	public function test_only_a_webhook_that_delivers_to_our_link_is_touched(): void {
 		$settings = $this->connected();
 		$hooks    = new Webhooks( $settings );

@@ -228,6 +228,28 @@ final class IssuerTest extends TestCase {
 		$this->assertSame( array(), $this->requests );
 	}
 
+	/** The legacy order store ignores a meta_query: another order of the address must not count unless it invited. */
+	public function test_an_earlier_order_that_never_invited_does_not_block(): void {
+		$this->order( 40, 'completed', 'ayse@example.com', false );
+		$this->order( 41, 'completed', 'ayse@example.com', true );
+		$this->order( 55 );
+		$this->script( $this->issued() );
+		$this->assertSame( Issuer::STATE_ISSUED, $this->issuer()->run( 55 ) );
+		$this->assertCount( 1, $this->requests );
+	}
+
+	public function test_the_search_for_an_earlier_invitation_reads_past_the_first_page(): void {
+		$old = $this->order( 40, 'completed' );
+		$old->update_meta_data( Issuer::META_STATE, Issuer::STATE_ISSUED );
+		for ( $i = 100; $i < 155; $i++ ) {
+			$this->order( $i, 'completed', 'ayse@example.com', false );
+		}
+		$order = $this->order( 55 );
+		$this->assertSame( Issuer::STATE_EXISTS, $this->issuer()->run( 55 ) );
+		$this->assertSame( array(), $this->requests );
+		$this->assertStringContainsString( '#40', $order->notes[0]['note'] );
+	}
+
 	public function test_an_earlier_refusal_does_not_block_a_new_order(): void {
 		$first = $this->order( 40, 'completed' );
 		$first->update_meta_data( Issuer::META_STATE, Issuer::STATE_FAILED );

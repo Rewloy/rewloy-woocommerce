@@ -213,6 +213,7 @@ final class Connection {
 				'step'             => $step,
 			)
 		);
+		$this->flush_account_endpoint();
 		return Result::ok( __( 'Connected. Paid orders now reach Rewloy through a WooCommerce webhook this plugin created.', 'rewloy-for-woocommerce' ) );
 	}
 
@@ -261,6 +262,7 @@ final class Connection {
 		}
 		$this->webhooks->delete( $s['webhook_id'] );
 		$this->settings->clear_connection();
+		$this->flush_account_endpoint();
 		return Result::ok(
 			$local_only
 				? __( 'The connection was forgotten on this site. The link in Rewloy is still there; delete it in the Rewloy panel if you no longer want it.', 'rewloy-for-woocommerce' )
@@ -301,6 +303,17 @@ final class Connection {
 			$out['error'] = Messages::for_error( $e );
 		}
 		return $out;
+	}
+
+	/**
+	 * The My Account tab exists only while connected, so connecting and disconnecting change the rewrite rules
+	 * when the tab is on: ask for one flush (Account::maybe_flush). Without it, a disconnect, any later flush
+	 * (saving the permalinks) and a new connect would leave the tab in the menu and its address a 404.
+	 */
+	private function flush_account_endpoint(): void {
+		if ( $this->settings->get()['account_tab'] ) {
+			update_option( Plugin::FLUSH_OPTION, '1', false );
+		}
 	}
 
 	/** Is this the address a WooCommerce shop link is delivered to: https on the API's own host, /hooks/store/<this link>? */

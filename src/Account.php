@@ -91,8 +91,8 @@ final class Account {
 			return;
 		}
 		$s = $this->settings->get();
+		// No heading of its own: WooCommerce already puts the endpoint's title (see title()) at the top of the page.
 		echo '<div class="rewloy-account">';
-		echo '<h3>' . esc_html( $this->title() ) . '</h3>';
 		echo '<p>' . esc_html__( 'Your loyalty card lives in Rewloy Cüzdan. Sign in there with your e-mail address: Rewloy sends you a code to prove the address is yours, and then shows your cards and balances. We do not show them here, because this shop cannot check that an address is really yours.', 'rewloy-for-woocommerce' ) . '</p>';
 		echo '<p><a class="button" href="' . esc_url( self::CUZDAN_URL ) . '" target="_blank" rel="noopener">' . esc_html__( 'Open Rewloy Cüzdan', 'rewloy-for-woocommerce' ) . '</a></p>';
 		if ( '' !== $s['join_url'] && $this->settings->is_rewloy_url( $s['join_url'] ) ) {

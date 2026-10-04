@@ -250,6 +250,21 @@ final class ConnectionTest extends TestCase {
 		$this->assertStringEndsWith( '/v1/shops/' . self::LINK, $this->requests[0]['url'] );
 	}
 
+	public function test_connecting_and_disconnecting_ask_for_one_rewrite_flush_only_when_the_account_tab_is_on(): void {
+		$this->script( $this->programs(), $this->shopAnswer(), $this->answer( 204 ) );
+		$settings = new Settings();
+		$this->connection( $settings )->connect( array( 'program_id' => self::PROGRAM, 'rule' => 'order', 'step' => '1' ) );
+		$this->assertArrayNotHasKey( \Rewloy\WooCommerce\Plugin::FLUSH_OPTION, $this->options, 'tab off: nothing to flush' );
+		$settings->update( array( 'account_tab' => true ) );
+		$this->connection( $settings )->disconnect();
+		$this->assertSame( '1', $this->options[ \Rewloy\WooCommerce\Plugin::FLUSH_OPTION ] ?? null, 'the tab goes away with the connection' );
+
+		unset( $this->options[ \Rewloy\WooCommerce\Plugin::FLUSH_OPTION ] );
+		$this->script( $this->programs(), $this->shopAnswer() );
+		$this->connection( $settings )->connect( array( 'program_id' => self::PROGRAM, 'rule' => 'order', 'step' => '1' ) );
+		$this->assertSame( '1', $this->options[ \Rewloy\WooCommerce\Plugin::FLUSH_OPTION ] ?? null, 'and comes back with it' );
+	}
+
 	public function test_disconnect_deletes_the_link_and_the_webhook_and_forgets_the_connection(): void {
 		$settings = $this->connected();
 		$hook     = $this->makeWebhook();

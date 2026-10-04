@@ -109,7 +109,8 @@ final class Webhooks {
 	 * (processing or completed: Rewloy ignores an unpaid order without reading its
 	 * e-mail), and nothing else. WooCommerce's order payload also holds names,
 	 * addresses, phone numbers and line items; Rewloy reads none of them. The
-	 * webhook's signature is computed over what is sent.
+	 * webhook's signature is computed over what is sent. The values are read from
+	 * the order itself, so they do not depend on the webhook user's REST rights.
 	 *
 	 * @param mixed $payload     The payload WooCommerce built.
 	 * @param mixed $resource    The resource ("order").
@@ -121,6 +122,21 @@ final class Webhooks {
 		$mine = $this->settings->get()['webhook_id'];
 		if ( $mine <= 0 || (int) $webhook_id !== $mine || 'order' !== $resource || ! is_array( $payload ) ) {
 			return $payload;
+		}
+		// The order itself is the source, not WooCommerce's REST payload: that payload is built as the webhook's
+		// user, and when that user was deleted or lost the right to read orders it is an error array, which would
+		// reach Rewloy as an empty order (answered 200 "ignored": no failure anywhere, and no order ever credited).
+		$order = is_numeric( $resource_id ) && (int) $resource_id > 0 ? wc_get_order( (int) $resource_id ) : false;
+		if ( $order instanceof \WC_Order ) {
+			$status = (string) $order->get_status();
+			return array(
+				'id'       => $order->get_id(),
+				'number'   => (string) $order->get_order_number(),
+				'status'   => $status,
+				'currency' => (string) $order->get_currency(),
+				'total'    => (string) wc_format_decimal( $order->get_total(), wc_get_price_decimals() ),
+				'billing'  => array( 'email' => in_array( $status, array( 'processing', 'completed' ), true ) ? (string) $order->get_billing_email() : '' ),
+			);
 		}
 		$billing = is_array( $payload['billing'] ?? null ) ? $payload['billing'] : array();
 		$paid    = in_array( $payload['status'] ?? '', array( 'processing', 'completed' ), true );

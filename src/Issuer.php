@@ -288,35 +288,63 @@ final class Issuer {
 		return 'woo-' . $this->settings->site_id() . '-' . $order_id;
 	}
 
+	/** Orders of one address asked for at a time, and how many such pages are read before the search stops. */
+	private const SEARCH_PAGE  = 50;
+	private const SEARCH_PAGES = 10;
+
 	/**
 	 * Another order that already invited this address (issued, or possibly issued), or null.
+	 *
+	 * The orders of the address are listed (by billing e-mail, which every order store supports) and each one's
+	 * state is read here. A `meta_query` on the state would be shorter, but the legacy post-based order store
+	 * ignores it (WooCommerce only notes "not supported on the current order datastore"): every other order of
+	 * the address would then count as an earlier invitation, and a returning customer whose first order never
+	 * invited anyone would be told "exists" and get no card. The search reads at most SEARCH_PAGES * SEARCH_PAGE
+	 * orders of one address, newest first; the e-mail claim (see run()) is the guard past that.
 	 *
 	 * @return int|null The earlier order's id.
 	 */
 	private function earlier_invitation( string $email, int $order_id ): ?int {
-		$ids = wc_get_orders(
-			array(
-				'billing_email' => $email,
-				'exclude'       => array( $order_id ),
-				'limit'         => 1,
-				'return'        => 'ids',
-				'meta_query'    => array(
-					array(
-						'key'     => self::META_STATE,
-						'value'   => array( self::STATE_ISSUED, self::STATE_UNKNOWN ),
-						'compare' => 'IN',
-					),
-				),
-			)
-		);
-		if ( ! is_array( $ids ) || array() === $ids ) {
-			return null;
+		for ( $page = 1; $page <= self::SEARCH_PAGES; $page++ ) {
+			$ids = wc_get_orders(
+				array(
+					'billing_email' => $email,
+					'exclude'       => array( $order_id ),
+					'limit'         => self::SEARCH_PAGE,
+					'paged'         => $page,
+					'orderby'       => 'ID',
+					'order'         => 'DESC',
+					'return'        => 'ids',
+				)
+			);
+			if ( ! is_array( $ids ) || array() === $ids ) {
+				return null;
+			}
+			foreach ( $ids as $found ) {
+				$earlier = $this->order_of( $found );
+				if ( null !== $earlier && $earlier->get_id() !== $order_id
+					&& in_array( (string) $earlier->get_meta( self::META_STATE ), array( self::STATE_ISSUED, self::STATE_UNKNOWN ), true ) ) {
+					return $earlier->get_id();
+				}
+			}
+			if ( count( $ids ) < self::SEARCH_PAGE ) {
+				return null;
+			}
 		}
-		$first = reset( $ids );
-		if ( $first instanceof \WC_Order ) {
-			return $first->get_id();
+		return null;
+	}
+
+	/**
+	 * An order from what wc_get_orders gave: an id (what 'return' => 'ids' yields) or already an order.
+	 *
+	 * @param mixed $found One row of the list.
+	 */
+	private function order_of( mixed $found ): ?\WC_Order {
+		if ( $found instanceof \WC_Order ) {
+			return $found;
 		}
-		return is_numeric( $first ) ? (int) $first : null;
+		$order = is_numeric( $found ) ? wc_get_order( (int) $found ) : false;
+		return $order instanceof \WC_Order ? $order : null;
 	}
 
 	/** Writes the state (and its code) to the order and saves it. */

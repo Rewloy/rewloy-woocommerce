@@ -53,6 +53,12 @@ final class AccountTest extends TestCase {
 		$this->assertStringNotContainsString( 'evil.test', $html );
 	}
 
+	public function test_the_tab_has_no_heading_of_its_own(): void {
+		// WooCommerce already puts the endpoint's title at the top of the page; a second one would repeat it.
+		$html = $this->render( new Account( $this->connected( array( 'account_tab' => true ) ) ) );
+		$this->assertDoesNotMatchRegularExpression( '/<h[1-6]/', $html );
+	}
+
 	public function test_nothing_is_rendered_while_off(): void {
 		$this->assertSame( '', $this->render( new Account( $this->connected( array( 'account_tab' => false ) ) ) ) );
 	}

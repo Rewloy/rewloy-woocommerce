@@ -92,7 +92,16 @@ billing e-mail **blank unless the status is `processing` or `completed`**. The
 signature is computed over what is sent.
 This is more than the brief asked for and it makes the privacy section true: "nothing
 else of the order". It depends on that filter's signature (`$payload, $resource,
-$resource_id, $webhook_id`); see "Not verified on real WordPress" below.
+$resource_id, $webhook_id`), which a real WooCommerce 11.1 was seen to honour
+(docs/VERIFIED.md, check 3).
+
+The values are read **from the order itself** (`wc_get_order`), not from the
+payload WooCommerce built. WooCommerce builds that payload as the webhook's user; when
+that user was deleted or lost the right to read orders, the payload is a REST error
+array. Trimming that would have sent Rewloy an empty order, which it answers
+with 200 "ignored": no failure anywhere, the webhook "active", and no order ever
+credited (seen on the real WooCommerce, fixed). Only when the order cannot be
+loaded does the trim fall back to the payload.
 
 ## The plugin
 
@@ -233,8 +242,9 @@ and checks the contents.
 
 **D22. Requirements as headers**: WordPress 6.4, PHP 8.1, `WC requires at least: 8.0`,
 `Requires Plugins: woocommerce` (WordPress 6.5+ enforces it; older versions ignore it
-and the plugin shows a notice if WooCommerce is missing). `Tested up to` (6.8) and
-`WC tested up to` (9.4) are stated as targets, not as a result: see below.
+and the plugin shows a notice if WooCommerce is missing). `Tested up to` (7.1, WordPress 7.1.2) and
+`WC tested up to` (11.1, WooCommerce 11.1.2) are what the real run in docs/VERIFIED.md used;
+the lower bounds (6.4, 8.0) are not tested.
 
 ## Known limits
 
@@ -264,16 +274,38 @@ and the plugin shows a notice if WooCommerce is missing). `Tested up to` (6.8) a
 - **If Action Scheduler never runs the action**, the card is not opened and the order
   shows no note. WooCommerce's own scheduled actions would be stuck too.
 
-## Not verified on real WordPress
+## Verified on a real WordPress, and what is not
 
-Everything runs under PHPUnit with stubs. Nothing has run in a real WordPress or
-WooCommerce. Before publishing, install it on a test shop and check, in particular:
+Run in a real WordPress 7.1.2 with WooCommerce 11.1.2 (PHP 8.3, MariaDB, HPOS on and
+off) against a local fake of the Rewloy endpoints: **docs/VERIFIED.md** has each check,
+what was seen and the defects it found. The fixes it led to:
 
-- that `woocommerce_webhook_payload` hands `($payload, $resource, $resource_id,
-  $webhook_id)` and that the cut-down body still verifies at Rewloy (the privacy text
-  depends on it; if the filter does not act, the full order would be sent);
-- that `WC_Webhook::set_api_version( 'wp_api_v3' )` accepts the string;
-- the block checkout's additional field and its stored meta key
-  (`_wc_other/rewloy-for-woocommerce/invite`);
-- that the My Account endpoint and its menu entry appear after the rewrite flush;
-- `Tested up to` and `WC tested up to` in `readme.txt` and the plugin header.
+**D23. The webhook body is built from the order**, not from WooCommerce's REST payload (see D6).
+
+**D24. "Has this address been invited?" lists the address's orders and reads each state
+in PHP; it does not use a `meta_query`.** WooCommerce's legacy post-based order store
+(still the store of many shops, HPOS off) ignores `meta_query` and only notes it as
+unsupported. Every other order of the address then counted as "invited", so a returning
+customer whose first order had no invitation was told "exists" and got no card (seen on
+the real WooCommerce, fixed). The search reads at most 10 pages of 50 orders of one
+address, newest first; past that the permanent e-mail claim is the guard.
+
+**D25. Connecting and disconnecting flush the rewrite rules when the My Account tab is
+on.** The tab exists only while connected, so a disconnect, any later flush (saving the
+permalinks) and a new connect would have left the tab in the menu and its address a 404.
+
+**D26. The My Account tab has no heading of its own.** WooCommerce already shows the
+endpoint's title ("Sadakat kartım") at the top of the page; a second heading repeated it.
+
+## Still not verified
+
+- Anything against the real Rewloy: its https host, whether it honours the
+  `Idempotency-Key` (D1 says it does not), and that it accepts the trimmed body: the fake
+  verifies the signature the way `handleOrder` is written (HMAC-SHA256, base64, over the
+  raw bytes), which is not the same as the real service.
+- WordPress below 7.1 and WooCommerce below 11.1 (the declared minimums are 6.4 and 8.0);
+  PHP 8.1 at run time (the code is only syntax-checked there); multisite.
+- A real mail transport (the run caught `wp_mail` calls), and Action Scheduler's own
+  async runner (the queue was run with WP-CLI; the container could not loop back to
+  itself).
+- Browsers other than the embedded Chromium; locales other than `tr_TR` and `en_US`.

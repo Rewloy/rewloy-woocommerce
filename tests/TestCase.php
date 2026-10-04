@@ -124,6 +124,8 @@ abstract class TestCase extends PhpUnitTestCase {
 		);
 		Functions\when( 'wc_get_order' )->alias( fn( $id = false ) => \WC_Order::$db[ (int) $id ] ?? false );
 		Functions\when( 'wc_get_webhook' )->alias( fn( $id ) => \WC_Webhook::$db[ (int) $id ] ?? null );
+		Functions\when( 'wc_get_price_decimals' )->justReturn( 2 );
+		Functions\when( 'wc_format_decimal' )->alias( fn( $n, $dp = false ) => false === $dp ? (string) $n : number_format( (float) $n, (int) $dp, '.', '' ) );
 		Functions\when( 'wc_get_orders' )->alias( fn( array $args ) => $this->queryOrders( $args ) );
 	}
 
@@ -220,6 +222,7 @@ abstract class TestCase extends PhpUnitTestCase {
 
 	/** @return list<int> */
 	private function queryOrders( array $args ): array {
+		// Like the legacy post-based order store: a meta_query is ignored (WooCommerce only notes it as unsupported).
 		$out = array();
 		foreach ( \WC_Order::$db as $id => $order ) {
 			if ( in_array( $id, (array) ( $args['exclude'] ?? array() ), true ) ) {
@@ -228,13 +231,13 @@ abstract class TestCase extends PhpUnitTestCase {
 			if ( isset( $args['billing_email'] ) && strtolower( $order->get_billing_email() ) !== strtolower( (string) $args['billing_email'] ) ) {
 				continue;
 			}
-			foreach ( (array) ( $args['meta_query'] ?? array() ) as $q ) {
-				if ( ! in_array( $order->get_meta( $q['key'] ), (array) $q['value'], true ) ) {
-					continue 2;
-				}
-			}
 			$out[] = $id;
 		}
-		return array_slice( $out, 0, (int) ( $args['limit'] ?? 10 ) );
+		if ( 'DESC' === ( $args['order'] ?? '' ) ) {
+			rsort( $out );
+		}
+		$limit = (int) ( $args['limit'] ?? 10 );
+		$page  = max( 1, (int) ( $args['paged'] ?? 1 ) );
+		return array_slice( $out, ( $page - 1 ) * $limit, $limit );
 	}
 }

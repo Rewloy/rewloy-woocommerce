@@ -31,6 +31,8 @@ class WC_Order {
 	/** @var list<array{note:string,customer:mixed}> */
 	public array $notes = array();
 	public int $saves = 0;
+	public string $currency = 'TRY';
+	public string $total    = '250';
 
 	public function __construct( private int $id = 0, private string $status = 'processing', private string $billing_email = '' ) {
 		self::$db[ $id ] = $this;
@@ -54,6 +56,14 @@ class WC_Order {
 
 	public function get_order_number(): string {
 		return (string) $this->id;
+	}
+
+	public function get_currency(): string {
+		return $this->currency;
+	}
+
+	public function get_total(): string {
+		return $this->total;
 	}
 
 	public function get_meta( string $key ): mixed {
